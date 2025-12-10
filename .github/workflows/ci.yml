@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  docker-build:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build Docker image
+      run: |
+        docker build --no-cache -t strongswan-server:latest -f ./server/strongswan.dockerfile .
+
+  trivy-scan:
+    runs-on: self-hosted
+    needs: docker-build
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      run: |
+        trivy image \
+          --severity HIGH,CRITICAL \
+          --ignorefile .trivyignore \
+          --exit-code 1 \
+          --no-progress \
+          --format table \
+          strongswan-server:latest
