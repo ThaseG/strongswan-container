@@ -71,7 +71,7 @@ RUN cd /opt && \
 # Stage 2: Build Go Exporter
 # ============================================
 
-FROM golang:1.23-bookworm AS go-builder
+FROM golang:1.25-bookworm AS go-builder
 
 WORKDIR /build
 
