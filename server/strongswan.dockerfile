@@ -5,7 +5,7 @@
 FROM debian:12-slim AS strongswan-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV STRONGSWAN_VERSION=6.0.0
+ENV STRONGSWAN_VERSION=6.0.3
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -29,9 +29,9 @@ RUN apt-get update && \
 
 # Download and build StrongSwan
 RUN cd /opt && \
-    wget https://download.strongswan.org/strongswan-${STRONGSWAN_VERSION}.tar.gz && \
-    tar xzf strongswan-${STRONGSWAN_VERSION}.tar.gz && \
-    cd strongswan-${STRONGSWAN_VERSION} && \
+    git clone --depth 1 --branch ${STRONGSWAN_VERSION} https://github.com/strongswan/strongswan.git && \
+    cd strongswan && \
+    ./autogen.sh && \
     ./configure \
         --prefix=/usr \
         --sysconfdir=/etc \
@@ -63,7 +63,7 @@ RUN cd /opt && \
     make -j$(nproc) && \
     make install && \
     cd / && \
-    rm -rf /opt/strongswan-${STRONGSWAN_VERSION}.tar.gz /opt/strongswan-${STRONGSWAN_VERSION}
+    rm -rf /opt/strongswan
 
 # ============================================
 # Stage 2: Build Go Exporter
