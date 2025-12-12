@@ -24,6 +24,7 @@ RUN apt-get update && \
     ca-certificates \
     git \
     wget \
+    gperf \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
