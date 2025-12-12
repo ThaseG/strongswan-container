@@ -25,6 +25,7 @@ RUN apt-get update && \
     git \
     wget \
     gperf \
+    iptables-dev \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
