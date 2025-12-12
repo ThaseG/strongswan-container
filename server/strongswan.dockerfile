@@ -26,6 +26,8 @@ RUN apt-get update && \
     wget \
     gperf \
     libiptc-dev \
+    bison \
+    flex \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -42,7 +44,6 @@ RUN cd /opt && \
         --enable-vici \
         --enable-swanctl \
         --enable-openssl \
-        --enable-pam \
         --enable-eap-identity \
         --enable-eap-md5 \
         --enable-eap-mschapv2 \
@@ -61,7 +62,6 @@ RUN cd /opt && \
         --enable-cmd \
         --disable-charon \
         --disable-stroke \
-        --disable-scepclient && \
     make -j$(nproc) && \
     make install && \
     cd / && \
