@@ -61,7 +61,7 @@ RUN cd /opt && \
         --enable-forecast \
         --enable-cmd \
         --disable-charon \
-        --disable-stroke \
+        --disable-stroke && \
     make -j$(nproc) && \
     make install && \
     cd / && \
