@@ -42,6 +42,7 @@ RUN cd /opt && \
         --sysconfdir=/etc \
         --localstatedir=/var \
         --libexecdir=/usr/lib \
+        --with-systemdsystemunitdir=/lib/systemd/system \
         --enable-systemd \
         --enable-vici \
         --enable-swanctl \
