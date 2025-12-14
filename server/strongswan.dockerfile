@@ -28,6 +28,7 @@ RUN apt-get update && \
     libiptc-dev \
     bison \
     flex \
+    systemd-dev \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -41,6 +42,7 @@ RUN cd /opt && \
         --sysconfdir=/etc \
         --localstatedir=/var \
         --libexecdir=/usr/lib \
+        --enable-systemd \
         --enable-vici \
         --enable-swanctl \
         --enable-openssl \
@@ -59,8 +61,7 @@ RUN cd /opt && \
         --enable-farp \
         --enable-connmark \
         --enable-forecast \
-        --enable-cmd \
-        --disable-stroke && \
+        --enable-cmd && \
     make -j$(nproc) && \
     make install && \
     cd / && \
