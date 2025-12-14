@@ -115,9 +115,9 @@ RUN apt-get update && \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create strongswan user and group
-RUN groupadd --system strongswan --gid 1000 && \
-    useradd --system --create-home --home-dir /home/strongswan --shell /bin/bash --uid 1000 -g strongswan strongswan
+# Create strongswan user and group (let system assign GID/UID)
+RUN groupadd --system strongswan && \
+    useradd --system --create-home --home-dir /home/strongswan --shell /bin/bash -g strongswan strongswan
 
 # Create necessary directories
 RUN mkdir -p \
