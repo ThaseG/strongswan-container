@@ -60,7 +60,6 @@ RUN cd /opt && \
         --enable-connmark \
         --enable-forecast \
         --enable-cmd \
-        --disable-charon \
         --disable-stroke && \
     make -j$(nproc) && \
     make install && \
