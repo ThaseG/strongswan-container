@@ -28,7 +28,7 @@ RUN apt-get update && \
     libiptc-dev \
     bison \
     flex \
-    systemd-dev \
+    libsystemd-dev \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
