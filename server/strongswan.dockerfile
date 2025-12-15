@@ -154,21 +154,8 @@ COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongs
 COPY --from=go-builder /build/strongswan-exporter /home/strongswan/exporter/strongswan-exporter
 
 # Copy configuration files
-COPY --chown=strongswan:strongswan config/swanctl.conf /etc/swanctl/swanctl.conf
-COPY --chown=strongswan:strongswan config/strongswan.conf /etc/strongswan.conf
-COPY --chown=strongswan:strongswan config/exporter.yml /home/strongswan/exporter/config.yml
-COPY --chown=strongswan:strongswan scripts/entrypoint.sh /entrypoint.sh
-COPY --chown=root:root config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-RUN chmod +x /entrypoint.sh /home/strongswan/exporter/strongswan-exporter
-
-# Set proper permissions
-RUN chmod 644 /etc/swanctl/swanctl.conf /etc/strongswan.conf && \
-    chmod 700 /etc/swanctl/private /etc/swanctl/rsa && \
-    chmod 755 /etc/swanctl/x509 /etc/swanctl/x509ca
-
-# Run ldconfig to update library cache
-RUN ldconfig
+COPY --chown=strongswan:strongswan exporter.yml /home/strongswan/exporter/config.yml
+COPY --chown=strongswan:strongswan reload-config.sh /reload-config.sh
 
 WORKDIR /home/strongswan
 
@@ -178,7 +165,4 @@ WORKDIR /home/strongswan
 # 9234/tcp - Prometheus Exporter
 EXPOSE 500/udp 4500/udp 9234/tcp
 
-VOLUME ["/etc/swanctl"]
-
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+ENTRYPOINT ["/reload-config.sh"]
