@@ -5,7 +5,7 @@
 FROM debian:12-slim AS strongswan-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV STRONGSWAN_VERSION=6.0.3
+ENV STRONGSWAN_VERSION=6.0.4
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -94,7 +94,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-LABEL maintainer="Andrej"
+LABEL maintainer="ThaseG"
 LABEL description="StrongSwan IKEv2 VPN Server with Prometheus Exporter"
 
 # Install runtime dependencies
