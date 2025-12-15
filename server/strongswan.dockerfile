@@ -68,6 +68,16 @@ RUN cd /opt && \
     cd / && \
     rm -rf /opt/strongswan
 
+# Create a staging directory with all files we need
+RUN mkdir -p /staging/usr/sbin /staging/usr/lib /staging/usr/share && \
+    cp -a /usr/sbin/swanctl /usr/sbin/charon-systemd /staging/usr/sbin/ && \
+    cp -a /usr/lib/ipsec /staging/usr/lib/ && \
+    cp -a /usr/share/strongswan /staging/usr/share/ && \
+    find /usr/lib -name "libcharon.so*" -exec cp -a {} /staging/usr/lib/ \; && \
+    find /usr/lib -name "libstrongswan.so*" -exec cp -a {} /staging/usr/lib/ \; && \
+    find /usr/lib -name "libvici.so*" -exec cp -a {} /staging/usr/lib/ \; && \
+    ls -la /staging/usr/lib/
+
 # ============================================
 # Stage 2: Build Go Exporter
 # ============================================
@@ -132,15 +142,13 @@ RUN mkdir -p \
     /home/strongswan/exporter && \
     chown -R strongswan:strongswan /etc/swanctl /var/run/strongswan /var/log/strongswan /home/strongswan
 
-# Copy StrongSwan installation from builder
-COPY --from=strongswan-builder /usr/sbin/swanctl /usr/sbin/charon-systemd /usr/sbin/
-COPY --from=strongswan-builder /usr/lib/ipsec/ /usr/lib/ipsec/
-
-# Copy libraries from the correct Debian multiarch path
-COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libcharon.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libstrongswan.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libvici.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=strongswan-builder /usr/share/strongswan/ /usr/share/strongswan/
+# Copy StrongSwan installation from staging directory
+COPY --from=strongswan-builder /staging/usr/sbin/ /usr/sbin/
+COPY --from=strongswan-builder /staging/usr/lib/ipsec/ /usr/lib/ipsec/
+COPY --from=strongswan-builder /staging/usr/lib/libcharon.so* /usr/lib/
+COPY --from=strongswan-builder /staging/usr/lib/libstrongswan.so* /usr/lib/
+COPY --from=strongswan-builder /staging/usr/lib/libvici.so* /usr/lib/
+COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongswan/
 
 # Copy Go exporter binary from builder
 COPY --from=go-builder /build/strongswan-exporter /home/strongswan/exporter/strongswan-exporter
