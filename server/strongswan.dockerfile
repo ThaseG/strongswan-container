@@ -135,7 +135,11 @@ RUN mkdir -p \
 # Copy StrongSwan installation from builder
 COPY --from=strongswan-builder /usr/sbin/swanctl /usr/sbin/charon-systemd /usr/sbin/
 COPY --from=strongswan-builder /usr/lib/ipsec/ /usr/lib/ipsec/
-COPY --from=strongswan-builder /usr/lib/libcharon.so* /usr/lib/libstrongswan.so* /usr/lib/libvici.so* /usr/lib/
+
+# Copy libraries from the correct Debian multiarch path
+COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libcharon.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libstrongswan.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=strongswan-builder /usr/lib/x86_64-linux-gnu/libvici.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=strongswan-builder /usr/share/strongswan/ /usr/share/strongswan/
 
 # Copy Go exporter binary from builder
