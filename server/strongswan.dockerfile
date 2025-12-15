@@ -154,8 +154,9 @@ COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongs
 COPY --from=go-builder /build/strongswan-exporter /home/strongswan/exporter/strongswan-exporter
 
 # Copy configuration files
-COPY --chown=strongswan:strongswan exporter.yml /home/strongswan/exporter/config.yml
-COPY --chown=strongswan:strongswan reload-config.sh /reload-config.sh
+COPY --chown=strongswan:strongswan server/exporter.yml /home/strongswan/exporter/config.yml
+COPY --chown=strongswan:strongswan server/reload-config.sh /home/strongswan/reload-config.sh
+RUN chmod +x /home/strongswan/reload-config.sh
 
 WORKDIR /home/strongswan
 
