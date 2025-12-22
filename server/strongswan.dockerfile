@@ -121,7 +121,6 @@ RUN apt-get update && \
     iptables \
     kmod \
     curl \
-    supervisor \
     tini \
     && apt-get upgrade -y \
     && apt-get clean && \
@@ -140,7 +139,6 @@ RUN mkdir -p \
     /etc/swanctl/rsa \
     /var/run/strongswan \
     /var/log/strongswan \
-    /var/log/supervisor \
     /home/strongswan/exporter && \
     chown -R strongswan:strongswan \
         /etc/swanctl \
@@ -162,9 +160,8 @@ COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongs
 COPY --from=go-builder /build/strongswan-exporter /usr/local/bin/strongswan-exporter
 RUN chmod +x /usr/local/bin/strongswan-exporter
 
-# Copy entrypoint and supervisord config
+# Copy entrypoint
 COPY server/entrypoint.sh /entrypoint.sh
-COPY server/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +x /entrypoint.sh
 
 # Run ldconfig to update library cache
@@ -180,4 +177,3 @@ VOLUME ["/etc/swanctl", "/var/log/strongswan"]
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
