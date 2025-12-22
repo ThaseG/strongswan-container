@@ -122,15 +122,16 @@ RUN apt-get update && \
     kmod \
     curl \
     supervisor \
+    tini \
     && apt-get upgrade -y \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create strongswan user and group (let system assign GID/UID)
+# Create strongswan user and group
 RUN groupadd --system strongswan && \
     useradd --system --create-home --home-dir /home/strongswan --shell /bin/bash -g strongswan strongswan
 
-# Create necessary directories
+# Create necessary directories with proper permissions
 RUN mkdir -p \
     /etc/swanctl/conf.d \
     /etc/swanctl/x509 \
@@ -139,8 +140,15 @@ RUN mkdir -p \
     /etc/swanctl/rsa \
     /var/run/strongswan \
     /var/log/strongswan \
+    /var/log/supervisor \
     /home/strongswan/exporter && \
-    chown -R strongswan:strongswan /etc/swanctl /var/run/strongswan /var/log/strongswan /home/strongswan
+    chown -R strongswan:strongswan \
+        /etc/swanctl \
+        /var/run/strongswan \
+        /var/log/strongswan \
+        /home/strongswan && \
+    chmod 700 /etc/swanctl/private /etc/swanctl/rsa && \
+    chmod 755 /etc/swanctl/x509 /etc/swanctl/x509ca
 
 # Copy StrongSwan installation from staging directory
 COPY --from=strongswan-builder /staging/usr/sbin/ /usr/sbin/
@@ -151,19 +159,25 @@ COPY --from=strongswan-builder /staging/usr/lib/libvici.so* /usr/lib/
 COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongswan/
 
 # Copy Go exporter binary from builder
-COPY --from=go-builder /build/strongswan-exporter /home/strongswan/exporter/strongswan-exporter
+COPY --from=go-builder /build/strongswan-exporter /usr/local/bin/strongswan-exporter
+RUN chmod +x /usr/local/bin/strongswan-exporter
 
-# Copy configuration files
-COPY --chown=strongswan:strongswan server/exporter.yml /home/strongswan/exporter/config.yml
-COPY --chown=strongswan:strongswan server/reload-config.sh /home/strongswan/reload-config.sh
-RUN chmod +x /home/strongswan/reload-config.sh
+# Copy entrypoint and supervisord config
+COPY server/entrypoint.sh /entrypoint.sh
+COPY server/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+RUN chmod +x /entrypoint.sh
+
+# Run ldconfig to update library cache
+RUN ldconfig
 
 WORKDIR /home/strongswan
 
 # Expose ports
-# 500/udp  - IKE (Internet Key Exchange)
-# 4500/udp - NAT-T (NAT Traversal)
-# 9234/tcp - Prometheus Exporter
 EXPOSE 500/udp 4500/udp 9234/tcp
 
-ENTRYPOINT ["/reload-config.sh"]
+# Use volumes for configuration
+VOLUME ["/etc/swanctl", "/var/log/strongswan"]
+
+# Use tini as init system
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
