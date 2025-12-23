@@ -1,4 +1,4 @@
-name: CI
+name: Validation Workflow
 
 on:
   push:
@@ -7,21 +7,126 @@ on:
     branches: [ main ]
 
 jobs:
-  docker-build:
+  pre-clean-up:
     runs-on: self-hosted
+
     steps:
     - uses: actions/checkout@v4
-    
+    - name: Stop all running Docker containers
+      run: |
+        echo "Fetching list of all running Docker containers..."
+        docker ps --format "{{.Names}}" | while read -r container; do
+            if [ -n "$container" ]; then
+                echo "Attempting to stop container: $container"
+                if docker stop "$container" 2>/dev/null; then
+                    echo "✓ Successfully stopped: $container"
+                else
+                    echo "✗ Failed to stop (skipping): $container"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Stop complete. Remaining running containers:"
+        docker ps
+    - name: Removing stopped containers
+      run: |
+        echo ""
+        echo "Removing all stopped containers..."
+        docker ps -a --format "{{.Names}}" | while read -r container; do
+            if [ -n "$container" ]; then
+                echo "Attempting to remove container: $container"
+                if docker rm "$container" 2>/dev/null; then
+                    echo "✓ Successfully removed: $container"
+                else
+                    echo "✗ Failed to remove (skipping): $container"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Cleanup complete. Remaining containers:"
+        docker ps -a
+    - name: Remove all Docker images
+      run: |
+        echo "Fetching list of all Docker images..."
+        docker images --format "{{.Repository}}:{{.Tag}}" | while read -r image; do
+            if [ "$image" != "<none>:<none>" ]; then
+                echo "Attempting to remove image: $image"
+                if docker rmi -f "$image" 2>/dev/null; then
+                    echo "✓ Successfully removed: $image"
+                else
+                    echo "✗ Failed to remove (skipping): $image"
+                fi
+            fi
+        done
+        
+        # Clean up dangling images separately
+        echo "Removing dangling images..."
+        docker images --filter "dangling=true" -q | while read -r image_id; do
+            if [ -n "$image_id" ]; then
+                echo "Attempting to remove dangling image: $image_id"
+                docker rmi -f "$image_id" 2>/dev/null || echo "✗ Failed to remove (skipping): $image_id"
+            fi
+        done
+        
+        echo ""
+        echo "Cleanup complete. Remaining images:"
+        docker images
+    - name: Remove all Docker networks and volumes
+      run: |
+        echo "=== Removing Docker Networks ==="
+        echo "Fetching list of all Docker networks..."
+        docker network ls --format "{{.Name}}" | while read -r network; do
+            # Skip default networks that cannot be removed
+            if [ "$network" != "bridge" ] && [ "$network" != "host" ] && [ "$network" != "none" ]; then
+                echo "Attempting to remove network: $network"
+                if docker network rm "$network" 2>/dev/null; then
+                    echo "✓ Successfully removed network: $network"
+                else
+                    echo "✗ Failed to remove network (skipping): $network"
+                fi
+            else
+                echo "⊘ Skipping default network: $network"
+            fi
+        done
+        
+        echo ""
+        echo "Remaining networks:"
+        docker network ls
+        echo ""
+        
+        echo "=== Removing Docker Volumes ==="
+        echo "Fetching list of all Docker volumes..."
+        docker volume ls --format "{{.Name}}" | while read -r volume; do
+            if [ -n "$volume" ]; then
+                echo "Attempting to remove volume: $volume"
+                if docker volume rm "$volume" 2>/dev/null; then
+                    echo "✓ Successfully removed volume: $volume"
+                else
+                    echo "✗ Failed to remove volume (skipping): $volume"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Remaining volumes:"
+        docker volume ls
+
+  BUILD-strongswan-server-image:
+    runs-on: self-hosted
+    needs: pre-clean-up
+    steps:
+    - uses: actions/checkout@v4
     - name: Build Docker image
       run: |
         docker build --no-cache -t strongswan-server:latest -f ./server/strongswan.dockerfile .
 
-  trivy-scan:
+  TEST-trivy-vulnerability-scan:
     runs-on: self-hosted
-    needs: docker-build
+    needs: BUILD-strongswan-server-image
     steps:
     - uses: actions/checkout@v4
-    
     - name: Run Trivy vulnerability scanner
       run: |
         trivy image \
@@ -31,3 +136,263 @@ jobs:
           --no-progress \
           --format table \
           strongswan-server:latest
+
+  TEST-e2e:
+    runs-on: self-hosted
+    needs: TEST-trivy-vulnerability-scan
+    steps:
+    - uses: actions/checkout@v4
+    - name: Create strongswan networks
+      run: |
+        echo "Creating strongswan networks"
+        docker network create --subnet=192.168.200.0/24 strongswan_external
+        docker network create --subnet=10.10.10.0/24 strongswan_internal
+    - name: Create strongswan volumes
+      run: |
+        echo "Creating strongswan config volume"
+        docker volume create strongswan_configs
+
+        echo "Creating strongswan logs volume"
+        docker volume create strongswan_logs
+    - name: Build StrongSwan Generator image
+      run: |
+        echo "Building new strongswan generator image ..."
+        docker builder build \
+          -t strongswan-generator:latest \
+          -f testing/strongswan_generator.dockerfile \
+          .
+    - name: Run StrongSwan Generator Container
+      run: |
+        echo "Running new strongswan generator container ..."
+        docker run \
+          -d \
+          --name strongswan-generator \
+          -v strongswan_configs:/home/strongswan/config \
+          strongswan-generator:latest
+    - name: Wait for strongswan-generator to finish
+      run: |
+        echo "Waiting for generator container to finish..."
+        docker wait strongswan-generator 2>/dev/null || true
+    - name: Verify if strongswan-generator is not running
+      run: |
+        echo "Just for sure showing running containers..."
+        docker ps | grep strongswan-generator || true
+    - name: Deploy server container
+      run: |
+        echo "Deploying strongswan-server container..."
+        docker run -d --name strongswan-server \
+          -v strongswan_configs:/home/strongswan/config \
+          -v strongswan_logs:/home/strongswan/logs \
+          --network=strongswan_external \
+          -p 500:500/udp \
+          -p 4500:4500/udp \
+          -p 9234:9234 \
+          --ip=192.168.200.100 \
+          --cap-add NET_ADMIN \
+          --cap-add SYS_MODULE \
+          --device /dev/net/tun:/dev/net/tun \
+          -v /lib/modules:/lib/modules:ro \
+          strongswan-server
+    - name: Adding strongswan_internal network to strongswan server
+      run: |
+        echo "Adding strongswan_internal network to strongswan-server..."
+        docker network connect --ip 10.10.10.100 strongswan_internal strongswan-server
+    - name: Building strongswan-client-bookworm image
+      run: |
+        echo "Building strongswan-client-bookworm image ..."
+        docker builder build \
+          -t strongswan-client-bookworm \
+          -f testing/strongswan_client_bookworm.dockerfile \
+          .
+    - name: Deploy strongswan-client-bookworm
+      run: |
+        echo "Deploying strongswan-client-bookworm container..."
+        docker run -d --name strongswan-client-bookworm \
+          -v strongswan_configs:/home/strongswan/config \
+          --network=strongswan_external \
+          --ip=192.168.200.10 \
+          --cap-add NET_ADMIN \
+          --cap-add SYS_MODULE \
+          --device /dev/net/tun:/dev/net/tun \
+          -v /lib/modules:/lib/modules:ro \
+          strongswan-client-bookworm
+    - name: Building strongswan-client-bullseye image
+      run: |
+        echo "Building strongswan-client-bullseye image ..."
+        docker builder build \
+          -t strongswan-client-bullseye \
+          -f testing/strongswan_client_bullseye.dockerfile \
+          .
+    - name: Deploy strongswan-client-bullseye
+      run: |
+        echo "Deploying strongswan-client-bullseye container..."
+        docker run -d --name strongswan-client-bullseye \
+          -v strongswan_configs:/home/strongswan/config \
+          --network=strongswan_external \
+          --ip=192.168.200.20 \
+          --cap-add NET_ADMIN \
+          --cap-add SYS_MODULE \
+          --device /dev/net/tun:/dev/net/tun \
+          -v /lib/modules:/lib/modules:ro \
+          strongswan-client-bullseye
+    - name: Building strongswan-client-jammy image
+      run: |
+        echo "Building strongswan-client-jammy image ..."
+        docker builder build \
+          -t strongswan-client-jammy \
+          -f testing/strongswan_client_jammy.dockerfile \
+          .
+    - name: Deploy strongswan-client-jammy
+      run: |
+        echo "Deploying strongswan-client-jammy container..."
+        docker run -d --name strongswan-client-jammy \
+          -v strongswan_configs:/home/strongswan/config \
+          --network=strongswan_external \
+          --ip=192.168.200.40 \
+          --cap-add NET_ADMIN \
+          --cap-add SYS_MODULE \
+          --device /dev/net/tun:/dev/net/tun \
+          -v /lib/modules:/lib/modules:ro \
+          strongswan-client-jammy
+    - name: Building strongswan-protected-service image
+      run: |
+        echo "Building strongswan-protected-service image ..."
+        docker builder build \
+          -t strongswan-protected-service \
+          -f testing/strongswan-protected-service.dockerfile \
+          .
+    - name: Run strongswan-protected-service container
+      run: |
+        docker run \
+          -dit \
+          --name strongswan-protected-service \
+          --network=strongswan_internal \
+          --ip=10.10.10.10 \
+          --cap-add=NET_ADMIN \
+          strongswan-protected-service
+    - name: Wait for IPsec tunnels to establish
+      run: |
+        echo "Waiting 30 seconds for IPsec tunnels to establish..."
+        sleep 30
+    - name: Run ping test
+      run: |
+        docker exec strongswan-client-bookworm ping 10.10.10.10 -c 100 -s 1300
+        docker exec strongswan-client-bullseye ping 10.10.10.10 -c 100 -s 1300
+        docker exec strongswan-client-jammy ping 10.10.10.10 -c 100 -s 1300
+    - name: Wait for additional metrics
+      run: |
+        sleep 30
+    - name: GET exporter data
+      run: |
+        echo "# curl -vvv http://192.168.200.100:9234/metrics"
+        curl -vvv http://192.168.200.100:9234/metrics
+        echo "# curl -vvv http://192.168.200.100:9234/sessions_local"
+        curl -vvv http://192.168.200.100:9234/sessions_local
+
+  post-clean-up:
+    runs-on: self-hosted
+    if: always()
+    needs: TEST-e2e
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Stop all running Docker containers
+      run: |
+        echo "Fetching list of all running Docker containers..."
+        docker ps --format "{{.Names}}" | while read -r container; do
+            if [ -n "$container" ]; then
+                echo "Attempting to stop container: $container"
+                if docker stop "$container" 2>/dev/null; then
+                    echo "✓ Successfully stopped: $container"
+                else
+                    echo "✗ Failed to stop (skipping): $container"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Stop complete. Remaining running containers:"
+        docker ps
+    - name: Removing stopped containers
+      run: |
+        echo ""
+        echo "Removing all stopped containers..."
+        docker ps -a --format "{{.Names}}" | while read -r container; do
+            if [ -n "$container" ]; then
+                echo "Attempting to remove container: $container"
+                if docker rm "$container" 2>/dev/null; then
+                    echo "✓ Successfully removed: $container"
+                else
+                    echo "✗ Failed to remove (skipping): $container"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Cleanup complete. Remaining containers:"
+        docker ps -a
+    - name: Remove all Docker images
+      run: |
+        echo "Fetching list of all Docker images..."
+        docker images --format "{{.Repository}}:{{.Tag}}" | while read -r image; do
+            if [ "$image" != "<none>:<none>" ]; then
+                echo "Attempting to remove image: $image"
+                if docker rmi -f "$image" 2>/dev/null; then
+                    echo "✓ Successfully removed: $image"
+                else
+                    echo "✗ Failed to remove (skipping): $image"
+                fi
+            fi
+        done
+        
+        # Clean up dangling images separately
+        echo "Removing dangling images..."
+        docker images --filter "dangling=true" -q | while read -r image_id; do
+            if [ -n "$image_id" ]; then
+                echo "Attempting to remove dangling image: $image_id"
+                docker rmi -f "$image_id" 2>/dev/null || echo "✗ Failed to remove (skipping): $image_id"
+            fi
+        done
+        
+        echo ""
+        echo "Cleanup complete. Remaining images:"
+        docker images
+    - name: Remove all Docker networks and volumes
+      run: |
+        echo "=== Removing Docker Networks ==="
+        echo "Fetching list of all Docker networks..."
+        docker network ls --format "{{.Name}}" | while read -r network; do
+            # Skip default networks that cannot be removed
+            if [ "$network" != "bridge" ] && [ "$network" != "host" ] && [ "$network" != "none" ]; then
+                echo "Attempting to remove network: $network"
+                if docker network rm "$network" 2>/dev/null; then
+                    echo "✓ Successfully removed network: $network"
+                else
+                    echo "✗ Failed to remove network (skipping): $network"
+                fi
+            else
+                echo "⊘ Skipping default network: $network"
+            fi
+        done
+        
+        echo ""
+        echo "Remaining networks:"
+        docker network ls
+        echo ""
+        
+        echo "=== Removing Docker Volumes ==="
+        echo "Fetching list of all Docker volumes..."
+        docker volume ls --format "{{.Name}}" | while read -r volume; do
+            if [ -n "$volume" ]; then
+                echo "Attempting to remove volume: $volume"
+                if docker volume rm "$volume" 2>/dev/null; then
+                    echo "✓ Successfully removed volume: $volume"
+                else
+                    echo "✗ Failed to remove volume (skipping): $volume"
+                fi
+            fi
+        done
+        
+        echo ""
+        echo "Remaining volumes:"
+        docker volume ls
