@@ -26,7 +26,7 @@ RUN apt-get update && \
 
 # Create a non-root user for running StrongSwan
 RUN groupadd strongswan
-RUN useradd -m -s /bin/bash strongswan -g strongswan
+#RUN useradd -m -s /bin/bash strongswan -g strongswan
 
 # Ensure /dev/net/tun exists
 RUN mkdir -p /dev/net && \
