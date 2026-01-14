@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# OpenVPN Certificate Generation Script with Curve25519 (Ed25519)
+# StrongSwan Certificate Generation Script with Curve25519 (Ed25519)
 # Compliant with: AES-256-GCM, SHA256, Curve25519/X25519
 
 # Change ownership of all files in config folder
-sudo chown -R openvpn:openvpn /home/openvpn/config/
+sudo chown -R strongswan:strongswan /home/strongswan/config/
 
 # Load centralized variables
-source /home/openvpn/versions.sh
+source /home/strongswan/versions.sh
 
 # Clean config and logs folders
-sudo rm -rf /home/openvpn/config/*
+sudo rm -rf /home/strongswan/config/*
 
 # Create CA cert folder
-mkdir -p /home/openvpn/config/ca
+mkdir -p /home/strongswan/config/ca
 
 # Generate CA certificate files using Ed25519 (Curve25519)
 echo "Generating CA certificate files with Ed25519 (Curve25519)"
