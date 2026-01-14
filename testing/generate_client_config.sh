@@ -10,7 +10,7 @@ source versions.sh
 
 # Loop through each client configuration
 for CLIENT_NAME in "${CLIENT_IMAGE_VERSIONS[@]}"; do
-    CLIENT_CONF="/home/openvpn/config/client-${CLIENT_NAME}.conf"
+    CLIENT_CONF="/home/strongswan/config/client-${CLIENT_NAME}.conf"
     
     echo "Generating client configuration file: $CLIENT_CONF"
     
@@ -29,22 +29,22 @@ persist-tun
 EOF
     
     echo "<cert>" >> "$CLIENT_CONF"
-    cat "/home/openvpn/config/${CLIENT_NAME}.crt" >> "$CLIENT_CONF"
+    cat "/home/strongswan/config/${CLIENT_NAME}.crt" >> "$CLIENT_CONF"
     echo "</cert>" >> "$CLIENT_CONF"
     
     echo "<key>" >> "$CLIENT_CONF"
-    cat "/home/openvpn/config/${CLIENT_NAME}.key" >> "$CLIENT_CONF"
+    cat "/home/strongswan/config/${CLIENT_NAME}.key" >> "$CLIENT_CONF"
     echo "</key>" >> "$CLIENT_CONF"
     
     echo "<ca>" >> "$CLIENT_CONF"
-    cat /home/openvpn/config/ca/ca.crt >> "$CLIENT_CONF"
+    cat /home/strongswan/config/ca/ca.crt >> "$CLIENT_CONF"
     echo "</ca>" >> "$CLIENT_CONF"
     
     cat >> "$CLIENT_CONF" << 'EOF'
 key-direction 1
 <tls-auth>
 EOF
-    cat /home/openvpn/config/ta.key >> "$CLIENT_CONF"
+    cat /home/strongswan/config/ta.key >> "$CLIENT_CONF"
     cat >> "$CLIENT_CONF" << 'EOF'
 </tls-auth>
 cipher AES-256-GCM

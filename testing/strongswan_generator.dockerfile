@@ -53,7 +53,7 @@ COPY --chown=strongswan:strongswan testing/generate_server_config.sh /home/stron
 COPY --chown=strongswan:strongswan testing/generate_client_config.sh /home/strongswan/generate_client_config.sh
 
 # Copy the reload entrypoint script to the container
-COPY --chown=openvpn:openvpn testing/reload-generator.sh /home/strongswan/reload-generator.sh
+COPY --chown=strongswan:strongswan testing/reload-generator.sh /home/strongswan/reload-generator.sh
 
 # Ensure the script is executable
 RUN chmod +x /home/strongswan/reload-generator.sh

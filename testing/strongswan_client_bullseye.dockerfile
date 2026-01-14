@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
-    openvpn \
+    strongswan \
     net-tools \
     tcpdump \
     ethtool \
@@ -24,36 +24,36 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for running OpenVPN
-RUN groupadd openvpn
-RUN useradd -m -s /bin/bash openvpn -g openvpn
+# Create a non-root user for running StrongSwan
+RUN groupadd strongswan
+RUN useradd -m -s /bin/bash strongswan -g strongswan
 
 # Ensure /dev/net/tun exists
 RUN mkdir -p /dev/net && \
     mknod /dev/net/tun c 10 200 && \
     chmod 666 /dev/net/tun
 
-# Allow the openvpn user to execute sudo commands without password
-RUN echo 'openvpn ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+# Allow the strongswan user to execute sudo commands without password
+RUN echo 'strongswan ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# Switch to the openvpn user
-USER openvpn
+# Switch to the strongswan user
+USER strongswan
 
-# Create directory for OpenVPN configuration & logs
-RUN mkdir -p /home/openvpn/config
-RUN mkdir -p /home/openvpn/logs
+# Create directory for StrongSwan configuration & logs
+RUN mkdir -p /home/strongswan/config
+RUN mkdir -p /home/strongswan/logs
 
 # Set the working directory
-WORKDIR /home/openvpn
+WORKDIR /home/strongswan
 
-# Send logs from openvpn to stdout
-RUN ln -sf /dev/stdout /home/openvpn/logs/openvpn-client.log
+# Send logs from strongswan to stdout
+RUN ln -sf /dev/stdout /home/strongswan/logs/strongswan-client.log
 
 # Copy the reload script to the container
-COPY --chown=openvpn:openvpn testing/reload-client-bullseye.sh /home/openvpn/reload-client-bullseye.sh
+COPY --chown=strongswan:strongswan testing/reload-client-bullseye.sh /home/strongswan/reload-client-bullseye.sh
 
 # Ensure the script is executable
-RUN chmod +x /home/openvpn/reload-client-bullseye.sh
+RUN chmod +x /home/strongswan/reload-client-bullseye.sh
 
 # Set the entrypoint to the script
-ENTRYPOINT ["/home/openvpn/reload-client-bullseye.sh"]
+ENTRYPOINT ["/home/strongswan/reload-client-bullseye.sh"]
