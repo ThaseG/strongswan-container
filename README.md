@@ -8,10 +8,9 @@ Exporter used in this project is from a dedicated [repository here.](https://git
 
 ## Features
 
-- 🔒 StrongSwan 6.0.3 - Built from source for latest security features
+- 🔒 StrongSwan 6.0.4 - Built from source for latest security features
 - 🐳 Docker-based - Easy deployment and management
 - 📊 Prometheus Metrics - Built-in StrongSwan exporter for monitoring
-- 🔄 Dual Protocol Support - Run TCP and UDP instances simultaneously
 - 🛡️ Security First - Runs as non-root user with minimal privileges
 - 📝 Flexible Configuration - Easy to customize via mounted configs
 - 🔧 iptables Support - Custom firewall rules support
