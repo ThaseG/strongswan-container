@@ -116,4 +116,8 @@ WORKDIR /home/strongswan
 EXPOSE 500/udp 4500/udp 9234/tcp
 VOLUME ["/etc/swanctl", "/var/log/strongswan"]
 
+WORKDIR /root
+RUN chown -R root:root /etc/swanctl /var/run/strongswan /var/log/strongswan
+USER root
+
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
