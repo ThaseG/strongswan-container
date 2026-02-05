@@ -1,33 +1,40 @@
 #!/bin/bash
 set -e
 
-echo "Starting StrongSwan charon daemon..."
-# Spustíme charon na pozadí a presmerujeme logy do súboru
-/usr/sbin/charon-systemd > /var/log/strongswan/charon.log 2>&1 &
+echo "=== Starting StrongSwan Charon Daemon ==="
+
+# Vytvorenie adresára pre socket, ak neexistuje
+mkdir -p /var/run/strongswan
+
+# Spustíme priamo charon (nie charon-systemd)
+# --debug-all 1 nám vypíše základné info o načítaní pluginov
+/usr/lib/ipsec/charon --debug-all 1 &
 
 echo "Waiting for VICI socket..."
-for i in {1..30}; do
-    # Vypíšeme, čo vidí systém v /var/run, aby sme videli progres
-    if [ -S "/var/run/strongswan/charon-vici.sock" ]; then
-        echo "VICI socket found!"
-        break
+# StrongSwan (non-systemd) zvyčajne vytvára socket tu:
+# Ak by ho nevytvoril, skontrolujeme aj /var/run/charon.vici
+for i in {1..20}; do
+    # Skúsime obe bežné cesty
+    if [ -S "/var/run/charon.vici" ]; then
+        SOCKET="/var/run/charon.vici"
+    elif [ -S "/var/run/strongswan/charon-vici.sock" ]; then
+        SOCKET="/var/run/strongswan/charon-vici.sock"
     fi
-    
-    # Ak po 5 sekundách socket stále nie je, vypíš posledné riadky logu charonu
-    if [ $i -eq 5 ]; then
-        echo "--- Debug: Last logs from charon ---"
-        tail -n 20 /var/log/strongswan/charon.log || echo "No logs available"
-        echo "------------------------------------"
+
+    if [ ! -z "$SOCKET" ]; then
+        echo "VICI socket found at $SOCKET!"
+        export STRONGSWAN_VICI_SOCKET="unix://$SOCKET"
+        echo "Starting exporter..."
+        exec /usr/local/bin/strongswan-exporter
     fi
-    
+
+    echo "Attempt $i: Socket not found yet..."
     sleep 1
-    if [ $i -eq 30 ]; then
-        echo "ERROR: VICI socket timeout"
-        # Pred koncom vypíšeme úplne všetko, čo charon povedal
-        cat /var/log/strongswan/charon.log
-        exit 1
-    fi
 done
 
-# Spustenie exportera...
-exec /usr/local/bin/strongswan-exporter
+echo "ERROR: VICI socket timeout."
+echo "--- Process list ---"
+ps aux
+echo "--- Content of /var/run ---"
+ls -R /var/run
+exit 1
