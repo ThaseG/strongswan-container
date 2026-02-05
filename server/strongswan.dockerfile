@@ -89,12 +89,13 @@ RUN groupadd --system strongswan && \
     chown -R strongswan:strongswan /etc/swanctl /var/run/strongswan /var/log/strongswan /home/strongswan && \
     chmod 700 /etc/swanctl/private /etc/swanctl/rsa
 
-# Kopirovanie vsetkych komponentov zo stagingu a builderov
+# Copy all components from stagging and builders
 COPY --from=strongswan-builder /staging/etc/strongswan.d/ /etc/strongswan.d/
 COPY --from=strongswan-builder /staging/usr/sbin/ /usr/sbin/
 COPY --from=strongswan-builder /staging/usr/lib/ /usr/lib/
 COPY --from=strongswan-builder /staging/usr/share/strongswan/ /usr/share/strongswan/
 COPY --from=go-builder /build/strongswan-exporter /usr/local/bin/strongswan-exporter
+COPY --chown=strongswan:strongswan server/exporter.yml /home/strongswan/exporter.yml
 COPY server/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /usr/local/bin/strongswan-exporter /entrypoint.sh

@@ -23,8 +23,16 @@ for i in {1..30}; do
     if [ ! -z "$SOCKET" ]; then
         echo "VICI socket found at $SOCKET!"
         export STRONGSWAN_VICI_SOCKET="unix://$SOCKET"
-        echo "Starting exporter..."
-        exec /usr/local/bin/strongswan-exporter
+
+        # Start the strongswan-exporter
+        if [ -f /usr/local/bin/strongswan-exporter ]; then
+            echo "Starting StrongSwan Exporter..."
+            /usr/local/bin/strongswan-exporter --config.file=/home/strongswan/exporter.yml &
+            pids+=($!)
+            echo "StrongSwan exporter started with PID ${pids[-1]}"
+        else
+            echo "WARNING: Exporter binary not found"
+        fi
     fi
 
     # Každých 5 pokusov vypíšeme, či proces charon stále žije
