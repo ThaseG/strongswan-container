@@ -166,7 +166,14 @@ COPY server/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create strongswan.conf
-RUN echo 'charon-systemd { load_modular = yes }' > /etc/strongswan.conf
+RUN echo 'charon-systemd { \n\
+  load_modular = yes \n\
+  plugins { \n\
+    vici { \n\
+      socket = unix:///var/run/strongswan/charon-vici.sock \n\
+    } \n\
+  } \n\
+}' > /etc/strongswan.conf
 
 # Run ldconfig to update library cache
 RUN ldconfig
