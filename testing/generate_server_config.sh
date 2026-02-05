@@ -1,8 +1,5 @@
 #!/bin/bash
-#
-# StrongSwan Server Configuration Generator
-# Generates ipsec.conf and ipsec.secrets for StrongSwan IPsec VPN
-#
+# generate_server_config.sh
 
 set -e
 

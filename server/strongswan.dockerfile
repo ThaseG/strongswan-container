@@ -1,6 +1,7 @@
 # ============================================
 # Stage 1: Build StrongSwan
 # ============================================
+# strongswan.dockerfile
 
 FROM debian:12-slim AS strongswan-builder
 
@@ -163,6 +164,9 @@ RUN chmod +x /usr/local/bin/strongswan-exporter
 # Copy entrypoint
 COPY server/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Create strongswan.conf
+RUN echo 'charon-systemd { load_modular = yes }' > /etc/strongswan.conf
 
 # Run ldconfig to update library cache
 RUN ldconfig

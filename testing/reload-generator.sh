@@ -1,4 +1,5 @@
 #!/bin/bash
+# reload-generator.sh
 
 # Making sure scripts exist and are executable
 chmod +x generate_ca_and_certs.sh

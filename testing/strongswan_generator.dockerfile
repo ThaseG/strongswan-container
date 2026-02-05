@@ -1,4 +1,5 @@
 # Use the official Debian base image
+# strongswan_generator.dockerfile
 FROM debian:12.12
 
 # Set environment variables to avoid interactive prompts during package installation

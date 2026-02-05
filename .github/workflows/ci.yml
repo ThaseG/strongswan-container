@@ -142,11 +142,13 @@ jobs:
     needs: TEST-trivy-vulnerability-scan
     steps:
     - uses: actions/checkout@v4
+
     - name: Create strongswan networks
       run: |
         echo "Creating strongswan networks"
         docker network create --subnet=192.168.200.0/24 strongswan_external
         docker network create --subnet=10.10.10.0/24 strongswan_internal
+
     - name: Create strongswan volumes
       run: |
         echo "Creating strongswan config volume"
@@ -154,6 +156,7 @@ jobs:
 
         echo "Creating strongswan logs volume"
         docker volume create strongswan_logs
+
     - name: Build StrongSwan Generator image
       run: |
         echo "Building new strongswan generator image ..."
@@ -161,6 +164,7 @@ jobs:
           -t strongswan-generator:latest \
           -f testing/strongswan_generator.dockerfile \
           .
+
     - name: Run StrongSwan Generator Container
       run: |
         echo "Running new strongswan generator container ..."
@@ -169,14 +173,17 @@ jobs:
           --name strongswan-generator \
           -v strongswan_configs:/home/strongswan/config \
           strongswan-generator:latest
+
     - name: Wait for strongswan-generator to finish
       run: |
         echo "Waiting for generator container to finish..."
         docker wait strongswan-generator 2>/dev/null || true
+
     - name: Verify if strongswan-generator is not running
       run: |
         echo "Just for sure showing running containers..."
         docker ps | grep strongswan-generator || true
+
     - name: Deploy server container
       run: |
         echo "Deploying strongswan-server container..."
@@ -193,10 +200,12 @@ jobs:
           --device /dev/net/tun:/dev/net/tun \
           -v /lib/modules:/lib/modules:ro \
           strongswan-server
+
     - name: Adding strongswan_internal network to strongswan server
       run: |
         echo "Adding strongswan_internal network to strongswan-server..."
         docker network connect --ip 10.10.10.100 strongswan_internal strongswan-server
+
     - name: Building strongswan-client-bookworm image
       run: |
         echo "Building strongswan-client-bookworm image ..."
@@ -204,6 +213,7 @@ jobs:
           -t strongswan-client-bookworm \
           -f testing/strongswan_client_bookworm.dockerfile \
           .
+
     - name: Deploy strongswan-client-bookworm
       run: |
         echo "Deploying strongswan-client-bookworm container..."
@@ -216,6 +226,7 @@ jobs:
           --device /dev/net/tun:/dev/net/tun \
           -v /lib/modules:/lib/modules:ro \
           strongswan-client-bookworm
+
     - name: Building strongswan-client-bullseye image
       run: |
         echo "Building strongswan-client-bullseye image ..."
@@ -223,6 +234,7 @@ jobs:
           -t strongswan-client-bullseye \
           -f testing/strongswan_client_bullseye.dockerfile \
           .
+
     - name: Deploy strongswan-client-bullseye
       run: |
         echo "Deploying strongswan-client-bullseye container..."
@@ -235,6 +247,7 @@ jobs:
           --device /dev/net/tun:/dev/net/tun \
           -v /lib/modules:/lib/modules:ro \
           strongswan-client-bullseye
+
     - name: Building strongswan-client-jammy image
       run: |
         echo "Building strongswan-client-jammy image ..."
@@ -242,6 +255,7 @@ jobs:
           -t strongswan-client-jammy \
           -f testing/strongswan_client_jammy.dockerfile \
           .
+
     - name: Deploy strongswan-client-jammy
       run: |
         echo "Deploying strongswan-client-jammy container..."
@@ -254,6 +268,7 @@ jobs:
           --device /dev/net/tun:/dev/net/tun \
           -v /lib/modules:/lib/modules:ro \
           strongswan-client-jammy
+
     - name: Building strongswan-protected-service image
       run: |
         echo "Building strongswan-protected-service image ..."
@@ -261,6 +276,7 @@ jobs:
           -t strongswan-protected-service \
           -f testing/strongswan-protected-service.dockerfile \
           .
+
     - name: Run strongswan-protected-service container
       run: |
         docker run \
@@ -270,18 +286,22 @@ jobs:
           --ip=10.10.10.10 \
           --cap-add=NET_ADMIN \
           strongswan-protected-service
+
     - name: Wait for IPsec tunnels to establish
       run: |
         echo "Waiting 30 seconds for IPsec tunnels to establish..."
         sleep 30
+
     - name: Run ping test
       run: |
         docker exec strongswan-client-bookworm ping 10.10.10.10 -c 100 -s 1300
         docker exec strongswan-client-bullseye ping 10.10.10.10 -c 100 -s 1300
         docker exec strongswan-client-jammy ping 10.10.10.10 -c 100 -s 1300
+
     - name: Wait for additional metrics
       run: |
         sleep 30
+
     - name: GET exporter data
       run: |
         echo "# curl -vvv http://192.168.200.100:9234/metrics"

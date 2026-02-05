@@ -1,4 +1,5 @@
 #!/bin/bash
+# entrypoint.sh
 set -e
 
 echo "=== StrongSwan Container Initialization ==="
