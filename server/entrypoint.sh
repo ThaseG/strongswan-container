@@ -3,18 +3,17 @@ set -e
 
 echo "=== Starting StrongSwan Charon Daemon ==="
 
-# Vytvorenie adresára pre socket, ak neexistuje
+# Vytvorenie adresára pre socket a nastavenie práv
 mkdir -p /var/run/strongswan
+chmod 755 /var/run/strongswan
 
-# Spustíme priamo charon (nie charon-systemd)
-# --debug-all 1 nám vypíše základné info o načítaní pluginov
-/usr/lib/ipsec/charon --debug-all 1 &
+# Spustenie charonu so správnym debugovaním (dmn = daemon, knl = kernel, cfg = config)
+# Spúšťame na pozadí
+/usr/lib/ipsec/charon --debug-dmn 1 --debug-knl 1 --debug-cfg 1 &
 
 echo "Waiting for VICI socket..."
-# StrongSwan (non-systemd) zvyčajne vytvára socket tu:
-# Ak by ho nevytvoril, skontrolujeme aj /var/run/charon.vici
-for i in {1..20}; do
-    # Skúsime obe bežné cesty
+for i in {1..30}; do
+    # Kontrolujeme obe možné cesty, kde by sa mohol socket objaviť
     if [ -S "/var/run/charon.vici" ]; then
         SOCKET="/var/run/charon.vici"
     elif [ -S "/var/run/strongswan/charon-vici.sock" ]; then
@@ -28,13 +27,18 @@ for i in {1..20}; do
         exec /usr/local/bin/strongswan-exporter
     fi
 
-    echo "Attempt $i: Socket not found yet..."
+    # Každých 5 pokusov vypíšeme, či proces charon stále žije
+    if [ $((i%5)) -eq 0 ]; then
+        if ps aux | grep -v grep | grep -q "/usr/lib/ipsec/charon"; then
+            echo "Attempt $i: Charon is running, but socket is not ready yet..."
+        else
+            echo "Attempt $i: FATAL - Charon process has died!"
+            exit 1
+        fi
+    fi
+    
     sleep 1
 done
 
 echo "ERROR: VICI socket timeout."
-echo "--- Process list ---"
-ps aux
-echo "--- Content of /var/run ---"
-ls -R /var/run
 exit 1
