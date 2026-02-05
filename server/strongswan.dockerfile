@@ -150,6 +150,7 @@ RUN mkdir -p \
     chmod 755 /etc/swanctl/x509 /etc/swanctl/x509ca
 
 # Copy StrongSwan installation from staging directory
+COPY --from=strongswan-builder /staging/etc/strongswan.d/ /etc/strongswan.d/
 COPY --from=strongswan-builder /staging/usr/sbin/ /usr/sbin/
 COPY --from=strongswan-builder /staging/usr/lib/ipsec/ /usr/lib/ipsec/
 COPY --from=strongswan-builder /staging/usr/lib/libcharon.so* /usr/lib/
@@ -166,14 +167,7 @@ COPY server/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create strongswan.conf
-RUN echo 'charon-systemd { \n\
-  load_modular = yes \n\
-  plugins { \n\
-    vici { \n\
-      socket = unix:///var/run/strongswan/charon-vici.sock \n\
-    } \n\
-  } \n\
-}' > /etc/strongswan.conf
+RUN echo 'charon-systemd {\n  load_modular = yes\n  plugins {\n    vici {\n      socket = unix:///var/run/strongswan/charon-vici.sock\n    }\n  }\n}' > /etc/strongswan.conf
 
 # Run ldconfig to update library cache
 RUN ldconfig
