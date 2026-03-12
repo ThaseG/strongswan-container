@@ -13,7 +13,7 @@ RUN apt-get update && \
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo 'set -e' >> /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
-    echo 'echo "Starting openvpn-protected-service..."' >> /entrypoint.sh && \
+    echo 'echo "Starting IPSEC-protected-service..."' >> /entrypoint.sh && \
     echo '' >> /entrypoint.sh && \
     echo 'echo "Current network configuration:"' >> /entrypoint.sh && \
     echo 'ip addr show' >> /entrypoint.sh && \
