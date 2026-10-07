@@ -1,3 +1,7 @@
+# Ubuntu release for the build and runtime stages. 26.04 is the current LTS and
+# what ubuntu:latest points to; pinned so a new release is a deliberate bump.
+ARG UBUNTU_VERSION=26.04
+
 # ============================================
 # Stage 1: Build StrongSwan
 # --------------------------------------------
@@ -6,7 +10,7 @@
 # STRONGSWAN_VERSION/STRONGSWAN_SHA256 from versions.sh; the defaults below
 # are for local builds and must be kept in sync.
 # ============================================
-FROM debian:13-slim AS strongswan-builder
+FROM ubuntu:${UBUNTU_VERSION} AS strongswan-builder
 
 ARG STRONGSWAN_VERSION=6.1.0
 ARG STRONGSWAN_SHA256=d9484eea319481bda86f992fa69cbdbdd9c0d6f8b9a4bd793a7df45c0760d963
@@ -102,7 +106,7 @@ RUN set -eux; \
 # ============================================
 # Stage 3: Final Runtime Image
 # ============================================
-FROM debian:13-slim
+FROM ubuntu:${UBUNTU_VERSION}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
