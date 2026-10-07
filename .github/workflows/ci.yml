@@ -130,23 +130,36 @@ jobs:
   TEST-trivy-vulnerability-scan:
     runs-on: self-hosted
     needs: BUILD-strongswan-server-image
+    env:
+      # :latest = newest Trivy release; :canary = nightly build from main
+      TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:latest
     steps:
     - uses: actions/checkout@v4
+    - name: Pull latest Trivy image
+      run: |
+        docker pull "$TRIVY_IMAGE"
+        docker run --rm "$TRIVY_IMAGE" --version
     - name: Run Trivy vulnerability scanner
       run: |
         set +e
-        trivy image \
-          --severity HIGH,CRITICAL \
-          --ignorefile .trivyignore \
-          --exit-code 1 \
-          --no-progress \
-          --format table \
-          --output trivy-report.txt \
-          strongswan-server:latest
+        # Trivy reads the locally built image through the Docker socket. The
+        # report goes to stdout and is written by the runner user, so no
+        # root-owned files are left in the workspace.
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v "$PWD/.trivyignore:/trivyignore:ro" \
+          -v trivy-cache:/root/.cache/trivy \
+          "$TRIVY_IMAGE" image \
+            --severity HIGH,CRITICAL \
+            --ignorefile /trivyignore \
+            --exit-code 1 \
+            --no-progress \
+            --format table \
+            strongswan-server:latest > trivy-report.txt
         rc=$?
         cat trivy-report.txt
         {
-          echo "## Trivy scan (HIGH, CRITICAL)"
+          echo "## Trivy scan (HIGH, CRITICAL) - $(docker run --rm "$TRIVY_IMAGE" --version | head -1)"
           if [ "$rc" -eq 0 ]; then echo "No unignored vulnerabilities found."; fi
           echo '```'
           cat trivy-report.txt
