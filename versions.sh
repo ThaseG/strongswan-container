@@ -16,20 +16,27 @@ STRONGSWAN_VERSION='6.1.0'
 STRONGSWAN_SHA256='d9484eea319481bda86f992fa69cbdbdd9c0d6f8b9a4bd793a7df45c0760d963'
 
 # Client image versions for testing (built from testing/strongswan_client.dockerfile)
-CLIENT_IMAGE_VERSIONS=("bullseye" "bookworm" "jammy")
+# Covers every supported Debian release and Ubuntu LTS. Debian 11 (bullseye)
+# was dropped after its end of life (2026-08), when its security archive left
+# the mirrors and apt could no longer install packages.
+CLIENT_IMAGE_VERSIONS=("bookworm" "trixie" "jammy" "noble" "resolute")
 
 # Distribution details
 declare -gA DISTRO_INFO=(
-    ["bullseye"]="Debian 11 (Bullseye)"
     ["bookworm"]="Debian 12 (Bookworm)"
+    ["trixie"]="Debian 13 (Trixie)"
     ["jammy"]="Ubuntu 22.04 LTS (Jammy)"
+    ["noble"]="Ubuntu 24.04 LTS (Noble)"
+    ["resolute"]="Ubuntu 26.04 LTS (Resolute)"
 )
 
 # Base image of each test client
 declare -gA CLIENT_BASE_IMAGES=(
-    ["bullseye"]="debian:bullseye"
     ["bookworm"]="debian:bookworm"
+    ["trixie"]="debian:trixie"
     ["jammy"]="ubuntu:jammy"
+    ["noble"]="ubuntu:noble"
+    ["resolute"]="ubuntu:resolute"
 )
 
 # Certificate configuration (all keys are Ed25519)
@@ -52,9 +59,11 @@ SERVER_INTERNAL_IP="10.10.10.100"
 PROTECTED_SERVICE_IP="10.10.10.10"
 EXPORTER_PORT=9234
 declare -gA CLIENT_IPS=(
-    ["bullseye"]="192.168.200.20"
     ["bookworm"]="192.168.200.10"
+    ["trixie"]="192.168.200.20"
     ["jammy"]="192.168.200.40"
+    ["noble"]="192.168.200.50"
+    ["resolute"]="192.168.200.60"
 )
 
 # Export variables for use in scripts

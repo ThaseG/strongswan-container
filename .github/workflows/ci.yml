@@ -219,6 +219,7 @@ jobs:
         path: test-results/report.xml
         reporter: java-junit
         fail-on-error: false   # the "Run e2e tests" step already fails the job
+        fail-on-empty: false   # no report when environment setup failed before the tests
 
     - name: Upload test results and logs
       if: always()
