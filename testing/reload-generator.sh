@@ -1,19 +1,11 @@
 #!/bin/bash
-# reload-generator.sh
+# reload-generator.sh - generator container entrypoint
 
-# Making sure scripts exist and are executable
-chmod +x generate_ca_and_certs.sh
+set -euo pipefail
+cd "$(dirname "$0")"
 
-# Generate certificates
 ./generate_ca_and_certs.sh
-
-# Generate server configuration
-chmod +x generate_server_config.sh
 ./generate_server_config.sh
-
-# Generate server configuration
-chmod +x generate_client_config.sh
 ./generate_client_config.sh
 
-# Wait for all background processes to finish
-wait
+echo "Test configuration generated successfully"

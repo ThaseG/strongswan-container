@@ -1,94 +1,49 @@
 #!/bin/bash
+# generate_ca_and_certs.sh
+#
+# Creates an Ed25519 test PKI in ${CONFIG_DIR}/pki: one CA, one server
+# certificate and one certificate per test client. strongSwan matches IKE
+# identities against subjectAltName (not the CN), so every leaf gets a SAN.
 
-# StrongSwan Certificate Generation Script with Curve25519 (Ed25519)
-# Compliant with: AES-256-GCM, SHA256, Curve25519/X25519
+set -euo pipefail
+cd "$(dirname "$0")"
+source ./versions.sh
 
-# Change ownership of all files in config folder
-sudo chown -R strongswan:strongswan /home/strongswan/config/
+CONFIG_DIR="${CONFIG_DIR:-/config}"
+PKI="${CONFIG_DIR}/pki"
+SUBJECT_BASE="/C=SK/L=Kosice/O=Test/OU=Test"
 
-# Load centralized variables
-source /home/strongswan/versions.sh
+# Start from an empty volume so stale material never leaks into a test run
+rm -rf "${CONFIG_DIR:?}"/*
+mkdir -p "$PKI"
 
-# Clean config and logs folders
-sudo rm -rf /home/strongswan/config/*
+echo "Generating CA (Ed25519)"
+openssl genpkey -algorithm ED25519 -out "$PKI/ca.key"
+openssl req -x509 -new -key "$PKI/ca.key" -days "$CA_VALIDITY_DAYS" \
+    -subj "${SUBJECT_BASE}/CN=StrongSwan Test CA" \
+    -out "$PKI/ca.crt"
 
-# Create CA cert folder
-mkdir -p /home/strongswan/config/ca
+# issue_cert <name> <common name> <subjectAltName>
+issue_cert() {
+    local name="$1" cn="$2" san="$3"
 
-# Generate CA certificate files using Ed25519 (Curve25519)
-echo "Generating CA certificate files with Ed25519 (Curve25519)"
-openssl genpkey -algorithm ED25519 -out /home/strongswan/config/ca/ca.key
-openssl req -x509 -new -key /home/strongswan/config/ca/ca.key -days 3650 \
-    -out /home/strongswan/config/ca/ca.crt \
-    -subj "/C=SK/L=Kosice/O=Test/OU=Test/CN=StrongSwan"
+    openssl genpkey -algorithm ED25519 -out "$PKI/${name}.key"
+    openssl req -new -key "$PKI/${name}.key" \
+        -subj "${SUBJECT_BASE}/CN=${cn}" -out "$PKI/${name}.csr"
+    printf 'basicConstraints=CA:FALSE\nkeyUsage=critical,digitalSignature\nsubjectAltName=%s\n' \
+        "$san" > "$PKI/${name}.ext"
+    openssl x509 -req -in "$PKI/${name}.csr" \
+        -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" -CAcreateserial \
+        -days "$CERT_VALIDITY_DAYS" -extfile "$PKI/${name}.ext" \
+        -out "$PKI/${name}.crt"
+    openssl verify -CAfile "$PKI/ca.crt" "$PKI/${name}.crt"
+    echo "✓ Issued certificate for ${name} (${san})"
+}
 
-# Generate server certificate files using Ed25519 (Curve25519)
-echo "Generating server certificate files with Ed25519 (Curve25519)"
-openssl genpkey -algorithm ED25519 -out /home/strongswan/config/server.key
-openssl req -new -key /home/strongswan/config/server.key \
-    -out /home/strongswan/config/server.csr \
-    -subj "/C=SK/L=Kosice/O=Test/OU=Test/CN=cicd.strongswan.com"
-openssl x509 -req -in /home/strongswan/config/server.csr \
-    -CA /home/strongswan/config/ca/ca.crt \
-    -CAkey /home/strongswan/config/ca/ca.key \
-    -CAcreateserial \
-    -out /home/strongswan/config/server.crt \
-    -days 365
+issue_cert server "$SERVER_ID" "DNS:${SERVER_ID},IP:${SERVER_EXTERNAL_IP}"
 
-# Generate client private keys using Ed25519 (Curve25519)
-echo "Generating client private keys with Ed25519 (Curve25519)"
 for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
-    openssl genpkey -algorithm ED25519 -out /home/strongswan/config/${client}.key
-    echo "✓ Generated private key for ${client}"
+    issue_cert "$client" "${client}.strongswan.com" "DNS:${client}.strongswan.com"
 done
 
-# Generate client CSRs
-echo "Generating client CSRs"
-for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
-    openssl req -new -key /home/strongswan/config/${client}.key \
-        -out /home/strongswan/config/${client}.csr \
-        -subj "/C=SK/L=Kosice/O=Test/OU=Test/CN=${client}.strongswan.com"
-    echo "✓ Generated CSR for ${client}"
-done
-
-# Sign client CSRs and generate certificates
-echo "Signing client CSRs and generating certificates"
-for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
-    openssl x509 -req -in /home/strongswan/config/${client}.csr \
-        -CA /home/strongswan/config/ca/ca.crt \
-        -CAkey /home/strongswan/config/ca/ca.key \
-        -CAcreateserial \
-        -out /home/strongswan/config/${client}.crt \
-        -days 365
-    echo "✓ Generated certificate for ${client}"
-done
-
-# Note: DH parameters are NOT needed when using ECC/ECDH
-echo "Skipping DH parameters generation (not needed with ECDH)"
-
-# Show generated files
-echo "####"
-echo "ls -lah /home/strongswan/config/ca/"
-ls -lah /home/strongswan/config/ca/
-echo "####"
-echo "ls -lah /home/strongswan/config/"
-ls -lah /home/strongswan/config/
-
-# Verify certificate details
-echo "####"
-echo "Verifying CA certificate uses Ed25519:"
-openssl x509 -in /home/strongswan/config/ca/ca.crt -text -noout | grep "Public Key Algorithm"
-openssl x509 -in /home/strongswan/config/ca/ca.crt -text -noout | grep "ED25519"
-echo "####"
-echo "Verifying server certificate uses Ed25519:"
-openssl x509 -in /home/strongswan/config/server.crt -text -noout | grep "Public Key Algorithm"
-openssl x509 -in /home/strongswan/config/server.crt -text -noout | grep "ED25519"
-
-# Wait for all background processes to finish
-wait
-
-echo "####"
-echo "Certificate generation complete!"
-echo "All certificates are using Ed25519 (Curve25519)"
-echo "Generated certificates for CLIENT_IMAGE_VERSIONS: ${CLIENT_IMAGE_VERSIONS[*]}"
-echo "Use 'ecdh-curve X25519' in your StrongSwan config for key exchange"
+echo "Certificate generation complete"

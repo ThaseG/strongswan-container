@@ -3,49 +3,65 @@
 # versions.sh - StrongSwan Container Version Configuration
 #
 # This file defines version information for the StrongSwan container
-# and the distributions used for testing.
+# and the distributions used for testing. It is the single source of truth
+# for CI: the image build and the e2e tests both read it.
 #
 
 # Container image version
-IMAGE_VERSION='v0.0.2'
+IMAGE_VERSION='v0.0.3'
 
-# StrongSwan version
-# For upgrade, please update also in server/strongswan.dockerfile
-STRONGSWAN_VERSION='6.0.3'
+# StrongSwan version (CI passes both values to server/strongswan.dockerfile;
+# keep the ARG defaults there in sync for local builds)
+STRONGSWAN_VERSION='6.1.0'
+STRONGSWAN_SHA256='d9484eea319481bda86f992fa69cbdbdd9c0d6f8b9a4bd793a7df45c0760d963'
 
-# Client image versions for testing
-# These correspond to the Dockerfiles in testing/ directory
+# Client image versions for testing (built from testing/strongswan_client.dockerfile)
 CLIENT_IMAGE_VERSIONS=("bullseye" "bookworm" "jammy")
 
 # Distribution details
-declare -A DISTRO_INFO=(
+declare -gA DISTRO_INFO=(
     ["bullseye"]="Debian 11 (Bullseye)"
     ["bookworm"]="Debian 12 (Bookworm)"
     ["jammy"]="Ubuntu 22.04 LTS (Jammy)"
 )
 
-# Certificate configuration
-CA_KEY_SIZE=4096
-CERT_KEY_SIZE=2048
+# Base image of each test client
+declare -gA CLIENT_BASE_IMAGES=(
+    ["bullseye"]="debian:bullseye"
+    ["bookworm"]="debian:bookworm"
+    ["jammy"]="ubuntu:jammy"
+)
+
+# Certificate configuration (all keys are Ed25519)
 CA_VALIDITY_DAYS=3650    # 10 years
 CERT_VALIDITY_DAYS=1825  # 5 years
 
-# IPsec configuration defaults
-DEFAULT_IKE_CIPHER="aes256-sha256-modp2048"
-DEFAULT_ESP_CIPHER="aes256-sha256"
-DEFAULT_KEY_EXCHANGE="ikev2"
+# IPsec configuration defaults (swanctl.conf proposal syntax)
+IKE_PROPOSALS="aes256gcm16-prfsha256-x25519-ecp256"
+ESP_PROPOSALS="aes256gcm16"
 
 # Network configuration
 VPN_POOL="10.0.70.0/24"
 EXTERNAL_NETWORK="192.168.200.0/24"
 INTERNAL_NETWORK="10.10.10.0/24"
 
+# Test topology
+SERVER_ID="cicd.strongswan.com"
+SERVER_EXTERNAL_IP="192.168.200.100"
+SERVER_INTERNAL_IP="10.10.10.100"
+PROTECTED_SERVICE_IP="10.10.10.10"
+EXPORTER_PORT=9234
+declare -gA CLIENT_IPS=(
+    ["bullseye"]="192.168.200.20"
+    ["bookworm"]="192.168.200.10"
+    ["jammy"]="192.168.200.40"
+)
+
 # Export variables for use in scripts
 export IMAGE_VERSION
 export STRONGSWAN_VERSION
+export STRONGSWAN_SHA256
 export CLIENT_IMAGE_VERSIONS
-export CA_KEY_SIZE
-export CERT_KEY_SIZE
 export CA_VALIDITY_DAYS
 export CERT_VALIDITY_DAYS
 
@@ -60,24 +76,24 @@ print_versions() {
     echo ""
     echo "Supported Test Distributions:"
     for dist in "${CLIENT_IMAGE_VERSIONS[@]}"; do
-        echo "  - ${dist}: ${DISTRO_INFO[$dist]}"
+        echo "  - ${dist}: ${DISTRO_INFO[$dist]} (${CLIENT_IPS[$dist]})"
     done
     echo ""
     echo "Certificate Configuration:"
-    echo "  CA Key Size:         ${CA_KEY_SIZE} bits"
-    echo "  Certificate Key Size: ${CERT_KEY_SIZE} bits"
+    echo "  Key Algorithm:       Ed25519"
     echo "  CA Validity:         ${CA_VALIDITY_DAYS} days"
     echo "  Cert Validity:       ${CERT_VALIDITY_DAYS} days"
     echo ""
     echo "IPsec Configuration:"
-    echo "  IKE Cipher:          ${DEFAULT_IKE_CIPHER}"
-    echo "  ESP Cipher:          ${DEFAULT_ESP_CIPHER}"
-    echo "  Key Exchange:        ${DEFAULT_KEY_EXCHANGE}"
+    echo "  IKE Proposals:       ${IKE_PROPOSALS}"
+    echo "  ESP Proposals:       ${ESP_PROPOSALS}"
     echo ""
     echo "Network Configuration:"
     echo "  VPN Pool:            ${VPN_POOL}"
     echo "  External Network:    ${EXTERNAL_NETWORK}"
     echo "  Internal Network:    ${INTERNAL_NETWORK}"
+    echo "  Server:              ${SERVER_EXTERNAL_IP} / ${SERVER_INTERNAL_IP}"
+    echo "  Protected Service:   ${PROTECTED_SERVICE_IP}"
     echo ""
 }
 

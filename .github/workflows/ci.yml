@@ -120,7 +120,12 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build Docker image
       run: |
-        docker build --no-cache -t strongswan-server:latest -f ./server/strongswan.dockerfile .
+        source versions.sh
+        docker build --no-cache \
+          --build-arg STRONGSWAN_VERSION="$STRONGSWAN_VERSION" \
+          --build-arg STRONGSWAN_SHA256="$STRONGSWAN_SHA256" \
+          -t strongswan-server:latest \
+          -f ./server/strongswan.dockerfile .
 
   TEST-trivy-vulnerability-scan:
     runs-on: self-hosted
@@ -129,183 +134,80 @@ jobs:
     - uses: actions/checkout@v4
     - name: Run Trivy vulnerability scanner
       run: |
+        set +e
         trivy image \
           --severity HIGH,CRITICAL \
           --ignorefile .trivyignore \
           --exit-code 1 \
           --no-progress \
           --format table \
+          --output trivy-report.txt \
           strongswan-server:latest
+        rc=$?
+        cat trivy-report.txt
+        {
+          echo "## Trivy scan (HIGH, CRITICAL)"
+          if [ "$rc" -eq 0 ]; then echo "No unignored vulnerabilities found."; fi
+          echo '```'
+          cat trivy-report.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$rc"
 
   TEST-e2e:
     runs-on: self-hosted
     needs: TEST-trivy-vulnerability-scan
+    permissions:
+      contents: read
+      checks: write   # dorny/test-reporter publishes a check run with per-test results
+    env:
+      BATS_VERSION: v1.14.0
     steps:
     - uses: actions/checkout@v4
 
-    - name: Create strongswan networks
+    - name: Install bats
       run: |
-        echo "Creating strongswan networks"
-        docker network create --subnet=192.168.200.0/24 strongswan_external
-        docker network create --subnet=10.10.10.0/24 strongswan_internal
+        rm -rf "$RUNNER_TEMP/bats-core"
+        git clone --quiet --depth 1 --branch "$BATS_VERSION" \
+          https://github.com/bats-core/bats-core "$RUNNER_TEMP/bats-core"
+        "$RUNNER_TEMP/bats-core/bin/bats" --version
 
-    - name: Create strongswan volumes
+    - name: Start test environment
       run: |
-        echo "Creating strongswan config volume"
-        docker volume create strongswan_configs
+        testing/e2e.sh down
+        testing/e2e.sh up
 
-        echo "Creating strongswan logs volume"
-        docker volume create strongswan_logs
-
-    - name: Build StrongSwan Generator image
+    - name: Run e2e tests
       run: |
-        echo "Building new strongswan generator image ..."
-        docker builder build \
-          -t strongswan-generator:latest \
-          -f testing/strongswan_generator.dockerfile \
-          .
+        mkdir -p test-results
+        "$RUNNER_TEMP/bats-core/bin/bats" \
+          --formatter tap \
+          --print-output-on-failure \
+          --timing \
+          --report-formatter junit \
+          --output test-results \
+          testing/e2e.bats
 
-    - name: Run StrongSwan Generator Container
-      run: |
-        echo "Running new strongswan generator container ..."
-        docker run \
-          -d \
-          --name strongswan-generator \
-          -v strongswan_configs:/home/strongswan/config \
-          strongswan-generator:latest
+    - name: Collect container logs
+      if: always()
+      run: testing/e2e.sh logs test-results/logs
 
-    - name: Wait for strongswan-generator to finish
-      run: |
-        echo "Waiting for generator container to finish..."
-        docker wait strongswan-generator 2>/dev/null || true
+    - name: Publish test results
+      if: always()
+      uses: dorny/test-reporter@v2
+      with:
+        name: E2E test results
+        path: test-results/report.xml
+        reporter: java-junit
+        fail-on-error: false   # the "Run e2e tests" step already fails the job
 
-    - name: Verify if strongswan-generator is not running
-      run: |
-        echo "Just for sure showing running containers..."
-        docker ps | grep strongswan-generator || true
-
-    - name: Deploy server container
-      run: |
-        echo "Deploying strongswan-server container..."
-        docker run -d --name strongswan-server \
-          -v strongswan_configs:/home/strongswan/config \
-          -v strongswan_logs:/home/strongswan/logs \
-          --network=strongswan_external \
-          -p 500:500/udp \
-          -p 4500:4500/udp \
-          -p 9234:9234 \
-          --ip=192.168.200.100 \
-          --cap-add NET_ADMIN \
-          --device /dev/net/tun:/dev/net/tun \
-          -v /lib/modules:/lib/modules:ro \
-          strongswan-server
-
-    - name: Adding strongswan_internal network to strongswan server
-      run: |
-        echo "Adding strongswan_internal network to strongswan-server..."
-        docker network connect --ip 10.10.10.100 strongswan_internal strongswan-server
-
-    - name: Building strongswan-client-bookworm image
-      run: |
-        echo "Building strongswan-client-bookworm image ..."
-        docker builder build \
-          -t strongswan-client-bookworm \
-          -f testing/strongswan_client_bookworm.dockerfile \
-          .
-
-    - name: Deploy strongswan-client-bookworm
-      run: |
-        echo "Deploying strongswan-client-bookworm container..."
-        docker run -d --name strongswan-client-bookworm \
-          -v strongswan_configs:/home/strongswan/config \
-          --network=strongswan_external \
-          --ip=192.168.200.10 \
-          --cap-add NET_ADMIN \
-          --cap-add SYS_MODULE \
-          --device /dev/net/tun:/dev/net/tun \
-          -v /lib/modules:/lib/modules:ro \
-          strongswan-client-bookworm
-
-    - name: Building strongswan-client-bullseye image
-      run: |
-        echo "Building strongswan-client-bullseye image ..."
-        docker builder build \
-          -t strongswan-client-bullseye \
-          -f testing/strongswan_client_bullseye.dockerfile \
-          .
-
-    - name: Deploy strongswan-client-bullseye
-      run: |
-        echo "Deploying strongswan-client-bullseye container..."
-        docker run -d --name strongswan-client-bullseye \
-          -v strongswan_configs:/home/strongswan/config \
-          --network=strongswan_external \
-          --ip=192.168.200.20 \
-          --cap-add NET_ADMIN \
-          --cap-add SYS_MODULE \
-          --device /dev/net/tun:/dev/net/tun \
-          -v /lib/modules:/lib/modules:ro \
-          strongswan-client-bullseye
-
-    - name: Building strongswan-client-jammy image
-      run: |
-        echo "Building strongswan-client-jammy image ..."
-        docker builder build \
-          -t strongswan-client-jammy \
-          -f testing/strongswan_client_jammy.dockerfile \
-          .
-
-    - name: Deploy strongswan-client-jammy
-      run: |
-        echo "Deploying strongswan-client-jammy container..."
-        docker run -d --name strongswan-client-jammy \
-          -v strongswan_configs:/home/strongswan/config \
-          --network=strongswan_external \
-          --ip=192.168.200.40 \
-          --cap-add NET_ADMIN \
-          --device /dev/net/tun:/dev/net/tun \
-          -v /lib/modules:/lib/modules:ro \
-          strongswan-client-jammy
-
-    - name: Building strongswan-protected-service image
-      run: |
-        echo "Building strongswan-protected-service image ..."
-        docker builder build \
-          -t strongswan-protected-service \
-          -f testing/strongswan-protected-service.dockerfile \
-          .
-
-    - name: Run strongswan-protected-service container
-      run: |
-        docker run \
-          -dit \
-          --name strongswan-protected-service \
-          --network=strongswan_internal \
-          --ip=10.10.10.10 \
-          --cap-add=NET_ADMIN \
-          strongswan-protected-service
-
-    - name: Wait for IPsec tunnels to establish
-      run: |
-        echo "Waiting 30 seconds for IPsec tunnels to establish..."
-        sleep 30
-
-    - name: Run ping test
-      run: |
-        docker exec strongswan-client-bookworm ping 10.10.10.10 -c 100 -s 1300
-        docker exec strongswan-client-bullseye ping 10.10.10.10 -c 100 -s 1300
-        docker exec strongswan-client-jammy ping 10.10.10.10 -c 100 -s 1300
-
-    - name: Wait for additional metrics
-      run: |
-        sleep 30
-
-    - name: GET exporter data
-      run: |
-        echo "# curl -vvv http://192.168.200.100:9234/metrics"
-        curl -vvv http://192.168.200.100:9234/metrics
-        echo "# curl -vvv http://192.168.200.100:9234/sessions_local"
-        curl -vvv http://192.168.200.100:9234/sessions_local
+    - name: Upload test results and logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-results
+        path: test-results/
+        retention-days: 14
 
   # post-clean-up:
   #   runs-on: self-hosted

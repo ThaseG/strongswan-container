@@ -1,2 +1,2 @@
 # Path to StrongSwan VICI socket
-vici-socket: "/var/run/charon.vici"
+vici_socket: "/var/run/charon.vici"
