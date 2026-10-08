@@ -10,6 +10,10 @@
 # The server image is not built here; CI builds it in a separate job.
 # Override with SERVER_IMAGE=... for local runs.
 #
+# The server publishes IKE (500/udp, 4500/udp) and the exporter (9234/tcp) on
+# all host interfaces so devices outside the runner can connect. Set
+# PUBLISH_PORTS=false to keep it reachable only from the Docker networks.
+#
 #   clients (192.168.200.0/24) --IPsec--> server --> protected service (10.10.10.0/24)
 
 set -euo pipefail
@@ -18,6 +22,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/versions.sh"
 
 SERVER_IMAGE="${SERVER_IMAGE:-strongswan-server:latest}"
+PUBLISH_PORTS="${PUBLISH_PORTS:-true}"
 NET_EXTERNAL="strongswan_external"
 NET_INTERNAL="strongswan_internal"
 CONFIG_VOLUME="strongswan_configs"
@@ -40,8 +45,13 @@ up() {
     echo "::endgroup::"
 
     echo "::group::Start server"
+    local publish=()
+    if [ "$PUBLISH_PORTS" = "true" ]; then
+        publish=(-p 500:500/udp -p 4500:4500/udp -p "${EXPORTER_PORT}:${EXPORTER_PORT}/tcp")
+    fi
     docker run -d --name strongswan-server \
         --network "$NET_EXTERNAL" --ip "$SERVER_EXTERNAL_IP" \
+        "${publish[@]}" \
         --cap-add NET_ADMIN \
         --sysctl net.ipv4.ip_forward=1 \
         -v "$CONFIG_VOLUME":/config:ro \

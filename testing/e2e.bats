@@ -46,6 +46,14 @@ load test_helper
     assert_output_contains "rw_pool"
 }
 
+@test "server: IKE and exporter ports are published on the host" {
+    [ "${PUBLISH_PORTS:-true}" = "true" ] || skip "PUBLISH_PORTS=false"
+    run -0 docker port "$SERVER"
+    assert_output_contains "500/udp ->"
+    assert_output_contains "4500/udp ->"
+    assert_output_contains "${EXPORTER_PORT}/tcp ->"
+}
+
 @test "server: IPv4 forwarding is enabled" {
     run -0 docker exec "$SERVER" cat /proc/sys/net/ipv4/ip_forward
     [ "$output" = "1" ]
