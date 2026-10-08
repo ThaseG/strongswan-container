@@ -2,24 +2,51 @@
 set -euo pipefail
 
 # Tunables (override with `docker run -e ...`)
-#   CHARON_DEBUG     - charon --debug-* arguments
-#   SWANCTL_DIR      - swanctl config root (read natively by swanctl)
-#   VICI_TIMEOUT     - seconds to wait for the VICI socket
-#   EXPORTER_ENABLED - set to "false" to skip the Prometheus exporter
-CHARON_DEBUG="${CHARON_DEBUG:---debug-dmn 1 --debug-knl 1 --debug-cfg 1}"
+#   SWANCTL_DIR         - swanctl config root (read natively by swanctl)
+#   VICI_TIMEOUT        - seconds to wait for the VICI socket
+#   EXPORTER_ENABLED    - set to "false" to skip the Prometheus exporter
+#   CHARON_STOP_TIMEOUT - seconds charon gets to shut down before it is killed
+#                         (keep below the `docker stop` timeout, default 10s)
+# Log levels are set in /etc/strongswan.d/charon-logging-container.conf.
 export SWANCTL_DIR="${SWANCTL_DIR:-/etc/swanctl}"
 VICI_TIMEOUT="${VICI_TIMEOUT:-30}"
 EXPORTER_ENABLED="${EXPORTER_ENABLED:-true}"
+CHARON_STOP_TIMEOUT="${CHARON_STOP_TIMEOUT:-8}"
 
 # Default socket; the exporter (govici) connects to this path unconditionally.
 VICI_SOCKET="/var/run/charon.vici"
 CHARON_PID=""
 EXPORTER_PID=""
 
+# Print state, kernel wait channel and current syscall of every charon thread,
+# to show where a stuck shutdown is blocked.
+dump_charon_threads() {
+    local task
+    for task in /proc/"$CHARON_PID"/task/*; do
+        echo "  thread ${task##*/}:" \
+             "state=$(awk '/^State:/ {print $2}' "$task/status" 2>/dev/null)" \
+             "wchan=$(cat "$task/wchan" 2>/dev/null)" \
+             "syscall=$(cut -d' ' -f1 "$task/syscall" 2>/dev/null)"
+    done
+}
+
 shutdown() {
     echo "=== Shutting down ==="
     [ -n "$EXPORTER_PID" ] && kill -TERM "$EXPORTER_PID" 2>/dev/null || true
     [ -n "$CHARON_PID" ] && kill -TERM "$CHARON_PID" 2>/dev/null || true
+
+    # Watchdog: never let a hung charon run into Docker's SIGKILL of the
+    # whole container. A killed charon still exits non-zero, so it stays visible.
+    if [ -n "$CHARON_PID" ]; then
+        (
+            sleep "$CHARON_STOP_TIMEOUT"
+            if kill -0 "$CHARON_PID" 2>/dev/null; then
+                echo "WARNING: charon did not stop within ${CHARON_STOP_TIMEOUT}s, killing it. Thread state:"
+                dump_charon_threads
+                kill -KILL "$CHARON_PID" 2>/dev/null || true
+            fi
+        ) &
+    fi
 }
 trap shutdown TERM INT
 
@@ -29,8 +56,7 @@ echo "=== Starting StrongSwan Charon Daemon ==="
 # refuse to start, and a stale socket would pass the readiness check below.
 rm -f /var/run/charon.pid "$VICI_SOCKET"
 
-# shellcheck disable=SC2086  # CHARON_DEBUG is intentionally word-split
-/usr/lib/ipsec/charon $CHARON_DEBUG &
+/usr/lib/ipsec/charon &
 CHARON_PID=$!
 
 echo "Waiting for VICI socket at $VICI_SOCKET..."

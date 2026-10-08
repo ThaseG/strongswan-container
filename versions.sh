@@ -8,7 +8,7 @@
 #
 
 # Container image version
-IMAGE_VERSION='v0.0.4'
+IMAGE_VERSION='v0.0.5'
 
 # StrongSwan version (CI passes both values to server/strongswan.dockerfile;
 # keep the ARG defaults there in sync for local builds)

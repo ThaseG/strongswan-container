@@ -11,7 +11,21 @@ VICI_SOCKET="/var/run/charon.vici"
 
 rm -f /var/run/charon.pid "$VICI_SOCKET"
 
-/usr/lib/ipsec/charon --debug-ike 1 --debug-cfg 1 --debug-knl 1 &
+# Log to stdout line by line; the default --debug-* logger is block-buffered
+# and loses its tail when the container stops.
+cat > /etc/strongswan.d/charon-logging-container.conf << 'EOF'
+charon {
+    filelog {
+        stdout {
+            default = 1
+            ike_name = yes
+            flush_line = yes
+        }
+    }
+}
+EOF
+
+/usr/lib/ipsec/charon &
 CHARON_PID=$!
 trap 'kill -TERM "$CHARON_PID" 2>/dev/null || true' TERM INT
 

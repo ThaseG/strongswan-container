@@ -18,7 +18,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Stop all running Docker containers
       run: |
         echo "Fetching list of all running Docker containers..."
@@ -130,7 +130,7 @@ jobs:
     runs-on: self-hosted
     needs: pre-clean-up
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Build Docker image
       run: |
         source versions.sh
@@ -149,7 +149,7 @@ jobs:
       # :latest = newest Trivy release; :canary = nightly build from main
       TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Pull latest Trivy image
       run: |
         docker pull "$TRIVY_IMAGE"
@@ -191,7 +191,7 @@ jobs:
     env:
       BATS_VERSION: v1.14.0
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Install bats
       run: |
@@ -222,7 +222,7 @@ jobs:
 
     - name: Publish test results
       if: always()
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       with:
         name: E2E test results
         path: test-results/report.xml
@@ -232,7 +232,7 @@ jobs:
 
     - name: Upload test results and logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: e2e-test-results
         path: test-results/
@@ -244,7 +244,7 @@ jobs:
   #   needs: TEST-e2e
 
   #   steps:
-  #   - uses: actions/checkout@v4
+  #   - uses: actions/checkout@v7
   #   - name: Stop all running Docker containers
   #     run: |
   #       echo "Fetching list of all running Docker containers..."

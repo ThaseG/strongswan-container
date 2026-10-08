@@ -129,6 +129,7 @@ COPY --from=strongswan-builder /build/ /
 COPY --from=go-builder /build/strongswan-exporter /usr/local/bin/strongswan-exporter
 COPY server/exporter.yml /etc/strongswan-exporter/exporter.yml
 COPY server/entrypoint.sh /entrypoint.sh
+COPY server/charon-logging.conf /etc/strongswan.d/charon-logging-container.conf
 
 # Secrets directories must not be world readable.
 RUN set -eux; \
