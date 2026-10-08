@@ -139,6 +139,9 @@ done
     elapsed=$((SECONDS - start))
     exit_code=$(docker inspect -f '{{.State.ExitCode}}' "$SERVER")
     echo "stopped in ${elapsed}s with exit code ${exit_code}"
-    [ "$elapsed" -lt 10 ]
-    [ "$exit_code" -eq 0 ]
+    if [ "$elapsed" -ge 10 ] || [ "$exit_code" -ne 0 ]; then
+        echo "--- last server log lines ---"
+        docker logs --tail 40 "$SERVER" 2>&1
+        false
+    fi
 }

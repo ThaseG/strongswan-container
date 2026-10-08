@@ -8,12 +8,19 @@
 #
 
 # Container image version
-IMAGE_VERSION='v0.0.3'
+IMAGE_VERSION='v0.0.4'
 
 # StrongSwan version (CI passes both values to server/strongswan.dockerfile;
 # keep the ARG defaults there in sync for local builds)
 STRONGSWAN_VERSION='6.1.0'
 STRONGSWAN_SHA256='d9484eea319481bda86f992fa69cbdbdd9c0d6f8b9a4bd793a7df45c0760d963'
+
+# strongswan-exporter release tag (https://github.com/ThaseG/strongswan-exporter)
+EXPORTER_VERSION='v1.0.0'
+
+# Go release used to build the exporter (major.minor; patch releases are
+# picked up automatically by the golang:<version> image)
+GO_VERSION='1.25'
 
 # Client image versions for testing (built from testing/strongswan_client.dockerfile)
 # Covers every supported Debian release and Ubuntu LTS. Debian 11 (bullseye)
@@ -70,6 +77,8 @@ declare -gA CLIENT_IPS=(
 export IMAGE_VERSION
 export STRONGSWAN_VERSION
 export STRONGSWAN_SHA256
+export EXPORTER_VERSION
+export GO_VERSION
 export CLIENT_IMAGE_VERSIONS
 export CA_VALIDITY_DAYS
 export CERT_VALIDITY_DAYS
@@ -82,6 +91,8 @@ print_versions() {
     echo ""
     echo "Container Image:     ${IMAGE_VERSION}"
     echo "StrongSwan Version:  ${STRONGSWAN_VERSION}"
+    echo "Exporter Version:    ${EXPORTER_VERSION}"
+    echo "Go Version:          ${GO_VERSION}"
     echo ""
     echo "Supported Test Distributions:"
     for dist in "${CLIENT_IMAGE_VERSIONS[@]}"; do

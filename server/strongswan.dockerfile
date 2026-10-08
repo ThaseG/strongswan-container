@@ -1,6 +1,9 @@
 # Ubuntu release for the build and runtime stages. 26.04 is the current LTS and
 # what ubuntu:latest points to; pinned so a new release is a deliberate bump.
 ARG UBUNTU_VERSION=26.04
+# Go release for the exporter build (golang:<version>-trixie). CI passes
+# GO_VERSION from versions.sh; keep this default in sync for local builds.
+ARG GO_VERSION=1.25
 
 # ============================================
 # Stage 1: Build StrongSwan
@@ -85,10 +88,11 @@ RUN set -eux; \
 # ============================================
 # Stage 2: Build Go Exporter
 # ============================================
-FROM golang:1.25-trixie AS go-builder
+FROM golang:${GO_VERSION}-trixie AS go-builder
 
-# Pinned exporter commit - bump deliberately.
-ARG EXPORTER_REF=f5fdaa572ddea69290aaaefdb36f680d4b179cff
+# Exporter release tag. CI passes EXPORTER_VERSION from versions.sh; keep
+# this default in sync for local builds.
+ARG EXPORTER_VERSION=v1.0.0
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 
@@ -96,9 +100,8 @@ WORKDIR /build
 # The exporter repo has no go.sum yet, so `go mod tidy` is still needed to
 # resolve dependencies.
 RUN set -eux; \
-    git init -q . && \
-    git fetch -q --depth 1 https://github.com/ThaseG/strongswan-exporter "${EXPORTER_REF}" && \
-    git checkout -q FETCH_HEAD && \
+    git clone -q --depth 1 --branch "${EXPORTER_VERSION}" \
+        https://github.com/ThaseG/strongswan-exporter . && \
     go mod tidy && \
     CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
         go build -trimpath -ldflags="-w -s" -o strongswan-exporter .
