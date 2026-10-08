@@ -117,7 +117,14 @@ done
         { echo "Expected ${#CLIENT_IMAGE_VERSIONS[@]} IKE SAs, found $count"; echo "$output"; false; }
 }
 
+sessions_total_is() {
+    metrics | grep -qx "strongswan_sessions_total $1"
+}
+
 @test "exporter: strongswan_sessions_total matches connected clients" {
+    # The exporter serves a cache refreshed every 15s; wait for a refresh
+    # that includes the most recently connected client.
+    retry 40 sessions_total_is "${#CLIENT_IMAGE_VERSIONS[@]}" || true
     run -0 metrics
     assert_output_matches "^strongswan_sessions_total ${#CLIENT_IMAGE_VERSIONS[@]}$"
 }
