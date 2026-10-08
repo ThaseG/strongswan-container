@@ -152,3 +152,8 @@ sessions_total_is() {
         false
     fi
 }
+
+@test "server: starts again after a clean stop" {
+    run -0 docker start "$SERVER"
+    retry 30 conn_loaded "$SERVER" rw || { docker logs --tail 50 "$SERVER"; false; }
+}

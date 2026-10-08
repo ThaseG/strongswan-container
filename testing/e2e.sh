@@ -4,6 +4,7 @@
 # Usage:
 #   testing/e2e.sh up            build test images and start the topology
 #   testing/e2e.sh logs <dir>    dump container logs and IPsec state into <dir>
+#   testing/e2e.sh connect       (re)connect all clients to the server
 #   testing/e2e.sh down          remove everything this script created
 #
 # The server image is not built here; CI builds it in a separate job.
@@ -92,6 +93,23 @@ logs() {
     done
 }
 
+connect() {
+    # (Re)establish every client tunnel, e.g. to leave a working environment
+    # behind after the tests restarted the server. Stale SAs are dropped first.
+    local client c rc=0
+    for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
+        c="strongswan-client-${client}"
+        docker exec "$c" swanctl --terminate --ike home --force --timeout 5 >/dev/null 2>&1 || true
+        if docker exec "$c" swanctl --initiate --child protected --timeout 30 >/dev/null; then
+            echo "✓ ${client} connected"
+        else
+            echo "✗ ${client} failed to connect"
+            rc=1
+        fi
+    done
+    return "$rc"
+}
+
 down() {
     for c in $(containers); do
         docker rm -f "$c" >/dev/null 2>&1 || true
@@ -103,6 +121,7 @@ down() {
 case "${1:-}" in
     up)   up ;;
     logs) logs "${2:-}" ;;
+    connect) connect ;;
     down) down ;;
-    *)    echo "usage: $0 up|logs <dir>|down" >&2; exit 2 ;;
+    *)    echo "usage: $0 up|logs <dir>|connect|down" >&2; exit 2 ;;
 esac

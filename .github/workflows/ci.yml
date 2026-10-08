@@ -238,6 +238,27 @@ jobs:
         path: test-results/
         retention-days: 14
 
+    # The environment stays up for manual testing until the next run's
+    # pre-clean-up job removes it.
+    - name: Leave environment running for manual testing
+      if: always()
+      continue-on-error: true
+      run: |
+        testing/e2e.sh connect
+        {
+          echo "## Test environment left running"
+          echo
+          echo "Removed by the next run's pre-clean-up. On the runner:"
+          echo
+          echo '```'
+          echo 'docker exec strongswan-server swanctl --list-sas'
+          echo 'docker exec strongswan-client-bookworm ping -c 3 10.10.10.10'
+          echo 'curl http://192.168.200.100:9234/metrics'
+          echo 'testing/e2e.sh connect   # reconnect all clients'
+          echo 'testing/e2e.sh down      # remove everything'
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
   # post-clean-up:
   #   runs-on: self-hosted
   #   if: always()
