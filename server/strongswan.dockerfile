@@ -20,15 +20,14 @@ ARG STRONGSWAN_SHA256=d9484eea319481bda86f992fa69cbdbdd9c0d6f8b9a4bd793a7df45c07
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# build-essential  - gcc, make, binutils (strip)
-# libssl-dev       - openssl plugin (all crypto; gmp plugin is not built)
-# libpam0g-dev     - xauth-pam plugin
-# libiptc-dev      - connmark and forecast plugins
-# file             - ELF detection for the strip step
+# build-essential       - gcc, make, binutils (strip)
+# libssl-dev            - openssl plugin (sole crypto provider)
+# libcurl4-openssl-dev  - curl fetcher plugin (CRL/OCSP retrieval)
+# file                  - ELF detection for the strip step
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential pkg-config ca-certificates curl file \
-        libssl-dev libpam0g-dev libiptc-dev && \
+        libssl-dev libcurl4-openssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src
@@ -42,35 +41,12 @@ RUN set -eux; \
 
 WORKDIR /usr/src/strongswan-${STRONGSWAN_VERSION}
 
-# --libexecdir=/usr/lib keeps charon at /usr/lib/ipsec/charon (see entrypoint.sh).
-# md4 is required by eap-mschapv2 (OpenSSL 3 only offers MD4 via its legacy provider).
+# The full plugin set (every plugin explicitly enabled or disabled) lives in
+# configure-strongswan.sh.
+COPY server/configure-strongswan.sh /usr/local/bin/configure-strongswan.sh
+
 RUN set -eux; \
-    ./configure \
-        --prefix=/usr \
-        --sysconfdir=/etc \
-        --localstatedir=/var \
-        --libexecdir=/usr/lib \
-        --enable-vici \
-        --enable-swanctl \
-        --enable-openssl \
-        --enable-kernel-netlink \
-        --enable-md4 \
-        --enable-eap-identity \
-        --enable-eap-md5 \
-        --enable-eap-mschapv2 \
-        --enable-eap-tls \
-        --enable-eap-ttls \
-        --enable-eap-peap \
-        --enable-eap-dynamic \
-        --enable-xauth-eap \
-        --enable-xauth-pam \
-        --enable-bypass-lan \
-        --enable-farp \
-        --enable-connmark \
-        --enable-forecast \
-        --disable-gmp \
-        --disable-stroke \
-        --disable-systemd; \
+    bash /usr/local/bin/configure-strongswan.sh; \
     make -j"$(nproc)"; \
     make install DESTDIR=/build
 
@@ -114,14 +90,14 @@ FROM ubuntu:${UBUNTU_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
 
 # libssl3t64            - openssl plugin
-# libip4tc2, libip6tc2  - connmark / forecast plugins
+# libcurl4t64           - curl fetcher plugin
+# ca-certificates       - TLS verification for curl
 # iproute2, iptables    - network tooling for updown scripts and debugging
 # tini                  - PID 1, reaps zombies and forwards signals
-# (libpam0g is part of the base image)
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
-        ca-certificates libssl3t64 libip4tc2 libip6tc2 \
+        ca-certificates libssl3t64 libcurl4t64 \
         iproute2 iptables tini && \
     rm -rf /var/lib/apt/lists/*
 
