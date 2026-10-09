@@ -20,7 +20,7 @@ EXPORTER_VERSION='v1.0.0'
 
 # Go release used to build the exporter (major.minor; patch releases are
 # picked up automatically by the golang:<version> image)
-GO_VERSION='1.27'
+GO_VERSION='1.27.2'
 
 # Client image versions for testing (built from testing/strongswan_client.dockerfile)
 # Covers every supported Debian release and Ubuntu LTS. Debian 11 (bullseye)

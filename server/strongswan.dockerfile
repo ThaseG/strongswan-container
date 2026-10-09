@@ -3,7 +3,7 @@
 ARG UBUNTU_VERSION=26.04
 # Go release for the exporter build (golang:<version>-trixie). CI passes
 # GO_VERSION from versions.sh; keep this default in sync for local builds.
-ARG GO_VERSION=1.27
+ARG GO_VERSION=1.27.2
 
 # ============================================
 # Stage 1: Build StrongSwan
