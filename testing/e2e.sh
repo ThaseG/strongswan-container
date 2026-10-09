@@ -4,7 +4,8 @@
 # Usage:
 #   testing/e2e.sh up            build test images and start the topology
 #   testing/e2e.sh logs <dir>    dump container logs and IPsec state into <dir>
-#   testing/e2e.sh connect       (re)connect all clients to the server
+#   testing/e2e.sh connect       (re)connect all clients and ping through each tunnel
+#   testing/e2e.sh traffic [stop] keep a slow ping running from every client
 #   testing/e2e.sh down          remove everything this script created
 #
 # The server image is not built here; CI builds it in a separate job.
@@ -23,6 +24,7 @@ source "$ROOT/versions.sh"
 
 SERVER_IMAGE="${SERVER_IMAGE:-strongswan-server:latest}"
 PUBLISH_PORTS="${PUBLISH_PORTS:-true}"
+TRAFFIC_INTERVAL="${TRAFFIC_INTERVAL:-5}"
 NET_EXTERNAL="strongswan_external"
 NET_INTERNAL="strongswan_internal"
 CONFIG_VOLUME="strongswan_configs"
@@ -110,14 +112,35 @@ connect() {
     for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
         c="strongswan-client-${client}"
         docker exec "$c" swanctl --terminate --ike home --force --timeout 5 >/dev/null 2>&1 || true
-        if docker exec "$c" swanctl --initiate --child protected --timeout 30 >/dev/null; then
-            echo "✓ ${client} connected"
+        if docker exec "$c" swanctl --initiate --child protected --timeout 30 >/dev/null &&
+           docker exec "$c" ping -c 3 -W 2 -q "$PROTECTED_SERVICE_IP" >/dev/null; then
+            echo "✓ ${client} connected, ping to ${PROTECTED_SERVICE_IP} OK"
         else
             echo "✗ ${client} failed to connect"
             rc=1
         fi
     done
     return "$rc"
+}
+
+traffic() {
+    # Keep a slow ping running from every client through its tunnel, so the
+    # exporter's byte counters keep moving while you watch. Stop with
+    # `traffic stop` (or `down`).
+    local client c
+    for client in "${CLIENT_IMAGE_VERSIONS[@]}"; do
+        c="strongswan-client-${client}"
+        # Stop a previous background ping (the client images have no pkill)
+        docker exec "$c" sh -c '[ -f /run/e2e-ping.pid ] && kill "$(cat /run/e2e-ping.pid)"; rm -f /run/e2e-ping.pid' \
+            >/dev/null 2>&1 || true
+        if [ "${1:-start}" = "start" ]; then
+            docker exec -d "$c" sh -c \
+                "echo \$\$ > /run/e2e-ping.pid; exec ping -i ${TRAFFIC_INTERVAL} -s 1300 ${PROTECTED_SERVICE_IP}"
+            echo "✓ ${client}: pinging ${PROTECTED_SERVICE_IP} every ${TRAFFIC_INTERVAL}s"
+        else
+            echo "✓ ${client}: background ping stopped"
+        fi
+    done
 }
 
 down() {
@@ -132,6 +155,7 @@ case "${1:-}" in
     up)   up ;;
     logs) logs "${2:-}" ;;
     connect) connect ;;
+    traffic) traffic "${2:-start}" ;;
     down) down ;;
-    *)    echo "usage: $0 up|logs <dir>|connect|down" >&2; exit 2 ;;
+    *)    echo "usage: $0 up|logs <dir>|connect|traffic [stop]|down" >&2; exit 2 ;;
 esac

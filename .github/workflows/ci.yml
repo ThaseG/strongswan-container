@@ -245,6 +245,7 @@ jobs:
       continue-on-error: true
       run: |
         testing/e2e.sh connect
+        testing/e2e.sh traffic
         {
           echo "## Test environment left running"
           echo
@@ -254,7 +255,8 @@ jobs:
           echo 'docker exec strongswan-server swanctl --list-sas'
           echo 'docker exec strongswan-client-bookworm ping -c 3 10.10.10.10'
           echo 'curl http://192.168.200.100:9234/metrics'
-          echo 'testing/e2e.sh connect   # reconnect all clients'
+          echo 'testing/e2e.sh connect        # reconnect all clients'
+          echo 'testing/e2e.sh traffic stop   # stop the background ping'
           echo 'testing/e2e.sh down      # remove everything'
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY"
