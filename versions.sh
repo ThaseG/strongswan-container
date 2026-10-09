@@ -8,7 +8,7 @@
 #
 
 # Container image version
-IMAGE_VERSION='v0.0.6'
+IMAGE_VERSION='v0.0.7'
 
 # StrongSwan version (CI passes both values to server/strongswan.dockerfile;
 # keep the ARG defaults there in sync for local builds)
@@ -20,7 +20,7 @@ EXPORTER_VERSION='v1.0.0'
 
 # Go release used to build the exporter (major.minor; patch releases are
 # picked up automatically by the golang:<version> image)
-GO_VERSION='1.25'
+GO_VERSION='1.27'
 
 # Client image versions for testing (built from testing/strongswan_client.dockerfile)
 # Covers every supported Debian release and Ubuntu LTS. Debian 11 (bullseye)
