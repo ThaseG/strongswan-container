@@ -94,12 +94,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ca-certificates       - TLS verification for curl
 # iproute2, iptables    - network tooling for updown scripts and debugging
 # tini                  - PID 1, reaps zombies and forwards signals
+#
+# pebble (Canonical's service manager, found in the Ubuntu 26.04 image) is
+# removed: tini is our init, and pebble is a Go binary whose stdlib CVEs would
+# otherwise fail the Trivy scan whenever Ubuntu lags behind a Go security fix.
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
         ca-certificates libssl3t64 libcurl4t64 \
         iproute2 iptables tini && \
-    rm -rf /var/lib/apt/lists/*
+    if dpkg -s pebble >/dev/null 2>&1; then apt-get purge -y --auto-remove pebble; fi && \
+    rm -f /usr/bin/pebble && \
+    rm -rf /var/lib/apt/lists/* && \
+    test ! -e /usr/bin/pebble
 
 COPY --from=strongswan-builder /build/ /
 COPY --from=go-builder /build/strongswan-exporter /usr/local/bin/strongswan-exporter
